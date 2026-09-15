@@ -16,6 +16,7 @@ import { Reports } from '@/pages/Reports';
 import { Settings } from '@/pages/Settings';
 import { AuditLogs } from '@/pages/AuditLogs';
 import { Suppliers } from '@/pages/Suppliers';
+import { Variants } from '@/pages/Variants';
 
 function AppContent() {
   const { session, profile, loading } = useAuth();
@@ -37,6 +38,7 @@ function AppContent() {
     switch (currentPage) {
       case 'dashboard': return <Dashboard />;
       case 'products': return <Products />;
+    case 'variants': return <Variants />;
       case 'stock-movements': return <StockMovements />;
       case 'sales': return <Sales />;
       case 'purchases': return <Purchases />;
