@@ -18,6 +18,15 @@ export interface Category {
   updated_at: string;
 }
 
+export interface Subcategory {
+  id: string;
+  category_id: string | null;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Supplier {
   id: string;
   name: string;
@@ -34,6 +43,7 @@ export interface Product {
   id: string;
   name: string;
   category_id: string | null;
+  subcategory_id?: string | null;
   supplier_id: string | null;
   brand: string | null;
   unit: string;
@@ -48,6 +58,24 @@ export interface Product {
   updated_at: string;
   category?: Category;
   supplier?: Supplier;
+}
+
+export interface ProductVariant {
+  id: string;
+  product_id: string;
+  brand?: string | null;
+  size?: string | null;
+  specification?: string | null;
+  unit?: string | null;
+  sku?: string | null;
+  cost_price: number;
+  selling_price: number;
+  current_stock: number;
+  reorder_level: number;
+  status: 'active' | 'inactive';
+  created_at: string;
+  updated_at: string;
+  product?: Product;
 }
 
 export interface StockMovement {
@@ -107,12 +135,14 @@ export interface SaleItem {
   id: string;
   sale_id: string;
   product_id: string;
+  product_variant_id?: string | null;
   quantity: number;
   selling_price: number;
   buying_price: number;
   total: number;
   profit: number;
   product?: Product;
+  product_variant?: ProductVariant;
 }
 
 export interface Expense {
