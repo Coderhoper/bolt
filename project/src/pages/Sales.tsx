@@ -17,13 +17,16 @@ export function Sales() {
   const { showToast } = useToast();
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<any[]>([]);
+  const [variants, setVariants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [viewSale, setViewSale] = useState<Sale | null>(null);
   const [viewItems, setViewItems] = useState<SaleItem[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [saleItems, setSaleItems] = useState<{ product_id: string; quantity: string }[]>([]);
+  const [saleItems, setSaleItems] = useState<{ category_id?: string; subcategory_id?: string; product_id?: string; product_variant_id?: string; quantity: string }[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
@@ -43,13 +46,26 @@ export function Sales() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  useEffect(() => {
+    (async () => {
+      const [{ data: cats }, { data: subs }, { data: vars }] = await Promise.all([
+        supabase.from('categories').select('*').order('name'),
+        supabase.from('subcategories').select('*').order('name'),
+        supabase.from('product_variants').select('*, product:products(*)').order('created_at'),
+      ]);
+      setCategories(cats || []);
+      setSubcategories(subs || []);
+      setVariants(vars || []);
+    })();
+  }, []);
+
   const filtered = sales.filter(s =>
     (s.sale_number || '').toLowerCase().includes(search.toLowerCase()) ||
     (s.customer_name || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const addItem = () => {
-    setSaleItems([...saleItems, { product_id: '', quantity: '1' }]);
+    setSaleItems([...saleItems, { category_id: '', subcategory_id: '', product_id: '', product_variant_id: '', quantity: '1' }]);
   };
 
   const removeItem = (index: number) => {
@@ -64,17 +80,29 @@ export function Sales() {
 
   const calculateTotal = () => {
     return saleItems.reduce((sum, item) => {
+      const qty = parseInt(item.quantity) || 0;
+      if (item.product_variant_id) {
+        const v = variants.find(x => x.id === item.product_variant_id);
+        if (!v) return sum;
+        return sum + qty * v.selling_price;
+      }
       const product = products.find(p => p.id === item.product_id);
       if (!product) return sum;
-      return sum + (parseInt(item.quantity) || 0) * product.selling_price;
+      return sum + qty * product.selling_price;
     }, 0);
   };
 
   const calculateProfit = () => {
     return saleItems.reduce((sum, item) => {
+      const qty = parseInt(item.quantity) || 0;
+      if (item.product_variant_id) {
+        const v = variants.find(x => x.id === item.product_variant_id);
+        if (!v) return sum;
+        return sum + qty * (v.selling_price - v.cost_price);
+      }
       const product = products.find(p => p.id === item.product_id);
       if (!product) return sum;
-      return sum + (parseInt(item.quantity) || 0) * (product.selling_price - product.buying_price);
+      return sum + qty * (product.selling_price - product.buying_price);
     }, 0);
   };
 
@@ -95,8 +123,10 @@ export function Sales() {
 
     setSaving(true);
     const itemsJson = saleItems.map(i => ({
-      product_id: i.product_id,
+      product_id: i.product_id || null,
+      product_variant_id: i.product_variant_id || null,
       quantity: parseInt(i.quantity),
+      selling_price: i.product_variant_id ? undefined : undefined,
     }));
 
     const { data, error } = await supabase.rpc('process_sale', {
@@ -267,24 +297,76 @@ export function Sales() {
             </div>
             <div className="divide-y divide-slate-100">
               {saleItems.map((item, index) => {
-                const product = products.find(p => p.id === item.product_id);
-                const lineTotal = product ? (parseInt(item.quantity) || 0) * product.selling_price : 0;
+                const availableSubcategories = subcategories.filter(s => s.category_id === item.category_id);
+                const availableProducts = products.filter(p => p.subcategory_id === item.subcategory_id || p.category_id === item.category_id);
+                const availableVariants = variants.filter(v => v.product_id === item.product_id);
+                const selectedVariant = variants.find(v => v.id === item.product_variant_id);
+                const selectedProduct = products.find(p => p.id === item.product_id);
+                const qty = parseInt(item.quantity) || 0;
+                const lineTotal = selectedVariant ? qty * selectedVariant.selling_price : (selectedProduct ? qty * selectedProduct.selling_price : 0);
+
                 return (
                   <div key={index} className="flex items-center gap-3 px-4 py-3">
-                    <div className="flex-1">
+                    <div className="flex-1 grid grid-cols-1 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
+                        <select
+                          value={item.category_id || ''}
+                          onChange={e => {
+                            updateItem(index, 'category_id', e.target.value);
+                            updateItem(index, 'subcategory_id', '');
+                            updateItem(index, 'product_id', '');
+                            updateItem(index, 'product_variant_id', '');
+                          }}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-blue-500 outline-none"
+                        >
+                          <option value="">Category</option>
+                          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+
+                        <select
+                          value={item.subcategory_id || ''}
+                          onChange={e => {
+                            updateItem(index, 'subcategory_id', e.target.value);
+                            updateItem(index, 'product_id', '');
+                            updateItem(index, 'product_variant_id', '');
+                          }}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-blue-500 outline-none"
+                        >
+                          <option value="">Subcategory</option>
+                          {availableSubcategories.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+
+                        <select
+                          value={item.product_id || ''}
+                          onChange={e => {
+                            updateItem(index, 'product_id', e.target.value);
+                            updateItem(index, 'product_variant_id', '');
+                          }}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-blue-500 outline-none"
+                        >
+                          <option value="">Product</option>
+                          {availableProducts.map(p => (
+                            <option key={p.id} value={p.id} disabled={p.current_stock <= 0}>
+                              {p.name} ({p.current_stock} {p.unit})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
                       <select
-                        value={item.product_id}
-                        onChange={e => updateItem(index, 'product_id', e.target.value)}
+                        value={item.product_variant_id || ''}
+                        onChange={e => updateItem(index, 'product_variant_id', e.target.value)}
                         className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-blue-500 outline-none"
                       >
-                        <option value="">Select product...</option>
-                        {products.map(p => (
-                          <option key={p.id} value={p.id} disabled={p.current_stock <= 0}>
-                            {p.name} ({p.current_stock} {p.unit} in stock)
+                        <option value="">Variant (optional)</option>
+                        {availableVariants.map(v => (
+                          <option key={v.id} value={v.id} disabled={v.current_stock <= 0}>
+                            {v.product?.name} · {v.brand || ''} {v.size ? `· ${v.size}` : ''} ({v.current_stock} {v.unit || 'pcs'})
                           </option>
                         ))}
                       </select>
                     </div>
+
                     <div className="w-20">
                       <input
                         type="number"
@@ -297,7 +379,7 @@ export function Sales() {
                       />
                     </div>
                     <div className="w-28 text-sm text-slate-500 text-right">
-                      {product ? `@ ${formatCurrency(product.selling_price)}` : '—'}
+                      {selectedVariant ? `@ ${formatCurrency(selectedVariant.selling_price)}` : (selectedProduct ? `@ ${formatCurrency(selectedProduct.selling_price)}` : '—')}
                     </div>
                     <div className="w-24 text-right text-sm font-medium text-slate-900">
                       {formatCurrency(lineTotal)}
