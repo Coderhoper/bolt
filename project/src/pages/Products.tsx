@@ -11,14 +11,16 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import {
   Package, Plus, Search, Pencil, Trash2, AlertTriangle, Filter,
 } from 'lucide-react';
-import type { Product, Category, Supplier } from '@/types';
+import type { Product, Category, Supplier, ProductVariant, Subcategory } from '@/types';
 
 export function Products() {
   const { isAdmin } = useAuth();
   const { showToast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
@@ -39,8 +41,14 @@ export function Products() {
       supabase.from('categories').select('*').order('name'),
       supabase.from('suppliers').select('*').order('name'),
     ]);
+    const [{ data: subs }, { data: vars }] = await Promise.all([
+      supabase.from('subcategories').select('*').order('name'),
+      supabase.from('product_variants').select('*, product:products(*)').order('created_at'),
+    ]);
     setProducts(prods || []);
     setCategories(cats || []);
+    setSubcategories(subs || []);
+    setVariants(vars || []);
     setSuppliers(sups || []);
     setLoading(false);
   }, []);
