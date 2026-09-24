@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "dev": "npm --prefix project run dev"
+  },
+  "dependencies": {
+    "build": "^0.1.4",
+    "run": "^2.1.4"
+  }
+}
