@@ -20,10 +20,15 @@ Deno.serve(async request => {
   const bearer = request.headers.get('Authorization') || '';
   const token = bearer.replace(/^Bearer\s+/i, '');
   const url = Deno.env.get('SUPABASE_URL');
-  const anon = Deno.env.get('SUPABASE_ANON_KEY');
-  if (!token || !url || !anon) return reply({ error: 'Owner messaging service is not configured' }, 503);
+  const publishableKeysRaw = Deno.env.get('SUPABASE_PUBLISHABLE_KEYS');
+  let publishableKey = '';
+  if (publishableKeysRaw) {
+    try { publishableKey = JSON.parse(publishableKeysRaw).default || ''; } catch { return reply({ error: 'Owner messaging service is misconfigured' }, 503); }
+  }
+  publishableKey ||= Deno.env.get('SUPABASE_ANON_KEY') || '';
+  if (!token || !url || !publishableKey) return reply({ error: 'Owner messaging service is not configured' }, 503);
 
-  const db = createClient(url, anon, { auth: { persistSession: false }, global: { headers: { Authorization: `Bearer ${token}` } } });
+  const db = createClient(url, publishableKey, { auth: { persistSession: false }, global: { headers: { Authorization: `Bearer ${token}` } } });
   const [{ data: userResult, error: authError }, { data: claimResult }] = await Promise.all([
     db.auth.getUser(token), db.auth.getClaims(token),
   ]);
