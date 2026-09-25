@@ -2,13 +2,13 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import {
   Activity, AlertTriangle, ArrowUpRight, BadgeCheck, Building2, Check, ChevronRight,
-  CircleHelp, ClipboardList, CreditCard, Database, FileClock, GraduationCap, LayoutDashboard,
-  LifeBuoy, LockKeyhole, LogOut, Menu, Plus, RefreshCw, Search, Settings2, ShieldCheck,
-  Signal, Users, X,
+  CircleHelp, ClipboardList, CreditCard, Database, FileClock, GraduationCap, LayoutDashboard, Mail,
+  LifeBuoy, LockKeyhole, LogOut, Menu, MessageCircle, MessageSquareText, Plus, RefreshCw,
+  Search, Send, Settings2, ShieldCheck, Signal, Users, X,
 } from 'lucide-react';
 import { ownerSupabase } from '@/lib/ownerSupabase';
 
-type Page = 'overview' | 'tenants' | 'onboarding' | 'analytics' | 'anomalies' | 'training' | 'support' | 'billing' | 'platform' | 'audit';
+type Page = 'overview' | 'tenants' | 'onboarding' | 'analytics' | 'anomalies' | 'training' | 'support' | 'billing' | 'platform' | 'communications' | 'audit';
 type Tenant = { id: string; name: string; slug: string; plan: string; region: string; status: string; isolation_level: string; primary_contact: string | null; contact_email: string | null; created_at: string };
 type FeedRow = { id: string; tenant_id?: string | null; title?: string; summary?: string | null; status?: string; severity?: string; created_at: string; name?: string; kind?: string; state?: string; [key: string]: unknown };
 type OwnerRole = 'platform_admin' | 'provisioner' | 'support' | 'analyst' | 'auditor';
@@ -23,6 +23,7 @@ const navigation: { id: Page; label: string; icon: typeof LayoutDashboard }[] = 
   { id: 'support', label: 'Support', icon: LifeBuoy },
   { id: 'billing', label: 'Billing', icon: CreditCard },
   { id: 'platform', label: 'Platform', icon: Settings2 },
+  { id: 'communications', label: 'Communications', icon: Mail },
   { id: 'audit', label: 'Owner audit', icon: FileClock },
 ];
 
@@ -38,6 +39,7 @@ export function OwnerConsole() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mfaFactor, setMfaFactor] = useState('');
+  const [enrollmentSecret, setEnrollmentSecret] = useState('');
   const [mfaCode, setMfaCode] = useState('');
   const [mfaError, setMfaError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -85,8 +87,16 @@ export function OwnerConsole() {
       const factor = factors?.totp.find(item => item.status === 'verified');
       if (factor) setMfaFactor(factor.id);
       else {
-        setAccessError('MFA is mandatory for owner accounts. Enroll a verified TOTP factor before signing in.');
-        await client.auth.signOut();
+        const { data: enrollment, error: enrollError } = await client.auth.mfa.enroll({
+          factorType: 'totp', issuer: 'Hardware Platform Owner', friendlyName: 'Owner console authenticator',
+        });
+        if (enrollError || !enrollment?.totp?.secret) {
+          setAccessError(enrollError?.message || 'Could not start authenticator enrollment.');
+          await client.auth.signOut();
+        } else {
+          setMfaFactor(enrollment.id);
+          setEnrollmentSecret(enrollment.totp.secret);
+        }
       }
       if (active) setMfaChecking(false);
     }).catch(async () => {
@@ -138,7 +148,11 @@ export function OwnerConsole() {
     if (challengeError) { setMfaError(challengeError.message); setBusy(false); return; }
     const { error: verifyError } = await ownerSupabase.auth.mfa.verify({ factorId: mfaFactor, challengeId: challenge.id, code: mfaCode });
     if (verifyError) setMfaError(verifyError.message);
-    else { setMfaFactor(''); setMfaCode(''); }
+    else {
+      setMfaFactor(''); setMfaCode(''); setEnrollmentSecret('');
+      const { data } = await ownerSupabase.auth.getSession();
+      setSession(data.session);
+    }
     setBusy(false);
   };
   const createTenant = async (event: FormEvent) => {
@@ -162,6 +176,7 @@ export function OwnerConsole() {
   if (authLoading) return <Loading />;
   if (!ownerSupabase) return <ConfigurationNotice />;
   if (session && mfaChecking) return <Loading />;
+  if (session && enrollmentSecret) return <MfaEnrollment secret={enrollmentSecret} code={mfaCode} setCode={setMfaCode} onSubmit={verifyMfa} busy={busy} error={mfaError} />;
   if (session && mfaFactor) return <MfaChallenge code={mfaCode} setCode={setMfaCode} onSubmit={verifyMfa} busy={busy} error={mfaError} />;
   if (!session) return <SignIn email={email} password={password} setEmail={setEmail} setPassword={setPassword} onSubmit={signIn} busy={busy} error={accessError} />;
   if (!role) return <AccessDenied email={session.user.email || ''} error={accessError} signOut={() => ownerSupabase!.auth.signOut()} />;
@@ -202,6 +217,7 @@ export function OwnerConsole() {
           {page === 'support' && <Support rows={feed} onNavigate={navigate} />}
           {page === 'billing' && <ResourcePage title="Plans & billing" subtitle="Subscription and usage records from the owner plane." rows={feed} empty="Billing integrations are not connected yet. No invoice or payment data is fabricated." fields={['tenant_id', 'plan', 'status', 'created_at']} />}
           {page === 'platform' && <Platform jobs={feed} tenants={tenants} />}
+          {page === 'communications' && <Communications role={role} />}
           {page === 'audit' && <Audit rows={feed} />}
           <div className="mt-8 flex items-start gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs leading-5 text-slate-500"><LockKeyhole size={15} className="mt-0.5 shrink-0 text-slate-400" /><p>Owner plane displays tenant metadata and aggregated telemetry only. Tenant product, price, staff, and transaction records stay in the tenant environment. Business-data access is not exposed from this console.</p></div>
         </main>
@@ -216,6 +232,17 @@ function Loading() { return <div className="flex min-h-screen items-center justi
 function ConfigurationNotice() { return <div className="flex min-h-screen items-center justify-center bg-slate-50 p-5"><div className="max-w-xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm"><div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900 text-white"><Database size={22} /></div><h1 className="text-xl font-bold">Owner plane is not configured</h1><p className="mt-2 text-sm leading-6 text-slate-600">Configure <code className="rounded bg-slate-100 px-1">VITE_OWNER_SUPABASE_URL</code> and <code className="rounded bg-slate-100 px-1">VITE_OWNER_SUPABASE_ANON_KEY</code> for a dedicated owner Supabase project. This console will not connect to the tenant database as a fallback.</p><p className="mt-4 text-xs text-slate-500">Apply the migrations in <code>supabase-owner/migrations</code> before enabling owner staff sign-in.</p></div></div>; }
 function SignIn({ email, password, setEmail, setPassword, onSubmit, busy, error }: { email: string; password: string; setEmail: (v: string) => void; setPassword: (v: string) => void; onSubmit: (e: FormEvent) => void; busy: boolean; error: string }) { return <div className="flex min-h-screen items-center justify-center bg-slate-50 p-5"><form onSubmit={onSubmit} className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm"><div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900 text-white"><ShieldCheck size={23} /></div><p className="text-xs font-semibold uppercase tracking-wider text-blue-700">Platform operations</p><h1 className="mt-2 text-2xl font-bold">Owner sign in</h1><p className="mt-2 text-sm text-slate-500">Use your separately provisioned platform staff identity.</p>{error && <p role="alert" className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}<label className="mt-6 block text-sm font-medium">Email<input required type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label><label className="mt-4 block text-sm font-medium">Password<input required type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label><button disabled={busy} className="mt-6 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">{busy ? 'Signing in…' : 'Sign in securely'}</button><p className="mt-4 flex items-center justify-center gap-1 text-xs text-slate-500"><LockKeyhole size={13} /> Owner identity is separate from tenant accounts</p></form></div>; }
 function MfaChallenge({ code, setCode, onSubmit, busy, error }: { code: string; setCode: (v: string) => void; onSubmit: (e: FormEvent) => void; busy: boolean; error: string }) { return <div className="flex min-h-screen items-center justify-center bg-slate-50 p-5"><form onSubmit={onSubmit} className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm"><div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><LockKeyhole size={22} /></div><h1 className="mt-4 text-xl font-bold">Verify your identity</h1><p className="mt-2 text-sm text-slate-500">Enter the current code from your enrolled authenticator app. Owner data stays locked until MFA succeeds.</p>{error && <p role="alert" className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}<label className="mt-5 block text-sm font-medium">Authenticator code<input required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-center text-xl tracking-[0.4em] outline-none focus:border-blue-500" /></label><button disabled={busy || code.length !== 6} className="mt-5 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">{busy ? 'Verifying…' : 'Verify and continue'}</button></form></div>; }
+
+function MfaEnrollment({ secret, code, setCode, onSubmit, busy, error }: { secret: string; code: string; setCode: (v: string) => void; onSubmit: (e: FormEvent) => void; busy: boolean; error: string }) {
+  return <div className="flex min-h-screen items-center justify-center bg-slate-50 p-5"><form onSubmit={onSubmit} className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><LockKeyhole size={22} /></div><p className="mt-5 text-xs font-semibold uppercase tracking-wider text-blue-700">One-time setup</p><h1 className="mt-1 text-2xl font-bold">Protect your owner account</h1>
+    <p className="mt-2 text-sm leading-6 text-slate-600">Add this account to an authenticator app, then enter its six-digit code. Owner-console data remains locked until verification.</p>
+    <label className="mt-5 block text-xs font-semibold text-slate-500">Authenticator setup key</label><code className="mt-1 block break-all rounded-lg bg-slate-100 p-3 font-mono text-sm text-slate-800">{secret}</code>
+    {error && <p role="alert" className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
+    <label className="mt-5 block text-sm font-medium">Authenticator code<input required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-center text-xl tracking-[0.4em] outline-none focus:border-blue-500" /></label>
+    <button disabled={busy || code.length !== 6} className="mt-5 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">{busy ? 'Verifying…' : 'Verify authenticator and continue'}</button>
+  </form></div>;
+}
 function AccessDenied({ email, error, signOut }: { email: string; error: string; signOut: () => Promise<unknown> }) { return <div className="flex min-h-screen items-center justify-center bg-slate-50 p-5"><div className="max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><LockKeyhole size={22} /></div><h1 className="mt-4 text-xl font-bold">Owner access is not enabled</h1><p className="mt-2 text-sm text-slate-600">Signed in as {email}. {error}</p><button onClick={() => void signOut()} className="mt-5 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium">Sign out</button></div></div>; }
 
 function PageHeading({ eyebrow, title, subtitle, action }: { eyebrow?: string; title: string; subtitle: string; action?: React.ReactNode }) { return <div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div>{eyebrow && <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-blue-700">{eyebrow}</p>}<h1 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h1><p className="mt-1 text-sm text-slate-500">{subtitle}</p></div>{action}</div>; }
@@ -233,6 +260,112 @@ function ResourcePage({ title, subtitle, rows, empty, fields }: { title: string;
 function Support({ rows, onNavigate }: { rows: FeedRow[]; onNavigate: (p: Page) => void }) { return <><PageHeading eyebrow="Tenant support" title="Support desk" subtitle="Tenant-scoped tickets, support workflow, and controlled escalation." action={<button onClick={() => onNavigate('audit')} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium">View audit log</button>} /><div className="mb-5 grid gap-4 md:grid-cols-2"><div className="rounded-xl border border-slate-200 bg-white p-5"><div className="flex items-center gap-2"><LifeBuoy size={18} className="text-blue-700" /><h2 className="font-semibold">Support tickets</h2></div><p className="mt-2 text-sm text-slate-500">Tickets should contain enough metadata to diagnose issues without reading tenant business records.</p></div><div className="rounded-xl border border-amber-200 bg-amber-50 p-5"><div className="flex items-center gap-2 text-amber-800"><LockKeyhole size={18} /><h2 className="font-semibold">Break-glass access</h2></div><p className="mt-2 text-sm leading-5 text-amber-900/80">Business-data access requires a separate support proxy, mandatory reason and ticket, table scope, tenant notification, two distinct approvers, query recording and auto-revocation within 60 minutes. This console does not grant direct database access.</p><p className="mt-2 text-xs font-medium text-amber-800">Support proxy integration required before enabling access requests.</p></div></div><ResourcePage title="Ticket queue" subtitle="Open and recently updated customer support issues." rows={rows} empty="No support tickets" fields={['tenant_id', 'title', 'severity', 'status', 'created_at']} /></>; }
 function Platform({ jobs, tenants }: { jobs: FeedRow[]; tenants: Tenant[] }) { return <><PageHeading eyebrow="Platform control" title="Platform operations" subtitle="Provisioning, release, feature flags, backups and system audit surfaces." /><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Stat label="Provisioning jobs" value={jobs.length} detail="Recent owner-plane jobs" icon={Database} /><Stat label="Registered environments" value={tenants.length} detail="Metadata registry records" icon={Building2} tone="emerald" /><Stat label="Release management" value="Not connected" detail="No deployment control API configured" icon={RefreshCw} tone="amber" /><Stat label="Feature flags" value="Not connected" detail="Flags must be delivered through a secured service" icon={Settings2} tone="slate" /></div><div className="mt-6 grid gap-4 md:grid-cols-2"><PlatformCard title="Provisioning" text="Create environment, apply tenant migrations, invite the first tenant administrator, register health checks and backups. Jobs are asynchronous and idempotent; execution needs a trusted provisioning API." icon={Database} /><PlatformCard title="Flags & releases" text="Keep releases and tenant feature configuration behind an authenticated server-side service. The owner UI does not hold deployment credentials." icon={Settings2} /><PlatformCard title="Backup & restore" text="Per-tenant encrypted backups and tested restore workflows belong to the infrastructure plane. Never expose raw tenant backup contents here." icon={ShieldCheck} /><PlatformCard title="Tenant trust" text="Telemetry can be opted out where it is behavioral. Keep technical health signals minimal, documented and free of tenant-user PII." icon={Users} /></div></>; }
 function PlatformCard({ title, text, icon: Icon }: { title: string; text: string; icon: typeof Users }) { return <div className="rounded-xl border border-slate-200 bg-white p-5"><Icon size={19} className="text-blue-700" /><h3 className="mt-3 font-semibold">{title}</h3><p className="mt-1 text-sm leading-6 text-slate-500">{text}</p><span className="mt-4 inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600"><CircleHelp size={13} />Integration seam defined</span></div>; }
+
+type CommChannel = 'email' | 'sms' | 'whatsapp';
+type CommConfig = { channel: CommChannel; provider: string; sender_name: string; sender_address: string; reply_to: string; is_enabled: boolean };
+type CommLog = { id: string; channel: CommChannel; provider: string; status: string; error_code: string | null; recipient_hash: string; created_at: string };
+const commDefaults: Record<CommChannel, CommConfig> = {
+  email: { channel: 'email', provider: 'postmark', sender_name: 'Platform', sender_address: '', reply_to: '', is_enabled: false },
+  sms: { channel: 'sms', provider: 'twilio', sender_name: 'Platform', sender_address: '', reply_to: '', is_enabled: false },
+  whatsapp: { channel: 'whatsapp', provider: 'meta_cloud', sender_name: 'Platform', sender_address: '', reply_to: '', is_enabled: false },
+};
+
+function Communications({ role }: { role: OwnerRole | null }) {
+  const client = ownerSupabase;
+  const [configs, setConfigs] = useState(commDefaults);
+  const [logs, setLogs] = useState<CommLog[]>([]);
+  const [channel, setChannel] = useState<CommChannel>('email');
+  const [recipient, setRecipient] = useState('');
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState<CommChannel | null>(null);
+  const [notice, setNotice] = useState('');
+  const [failure, setFailure] = useState('');
+  const canConfigure = role === 'platform_admin';
+
+  const load = useCallback(async () => {
+    if (!client) return;
+    const [{ data: configRows }, { data: logRows }] = await Promise.all([
+      client.from('owner_comm_channels').select('*'),
+      client.from('owner_comm_messages').select('id,channel,provider,status,error_code,recipient_hash,created_at').order('created_at', { ascending: false }).limit(25),
+    ]);
+    setConfigs(current => ({ ...current, ...Object.fromEntries((configRows || []).map(row => [row.channel, row])) }));
+    setLogs((logRows || []) as CommLog[]);
+  }, [client]);
+  useEffect(() => { void load(); }, [load]);
+
+  const patchConfig = (key: CommChannel, field: keyof CommConfig, value: string | boolean) =>
+    setConfigs(current => ({ ...current, [key]: { ...current[key], [field]: value } }));
+
+  const saveConfig = async (key: CommChannel) => {
+    if (!client) return;
+    const config = configs[key]; setSaving(key); setFailure(''); setNotice('');
+    const { error: saveError } = await client.rpc('owner_set_comm_channel', {
+      p_channel: key, p_provider: config.provider, p_sender_name: config.sender_name,
+      p_sender_address: config.sender_address, p_reply_to: config.reply_to || null, p_is_enabled: config.is_enabled,
+    });
+    setSaving(null);
+    if (saveError) setFailure(saveError.message); else { setNotice(`${pretty(key)} settings saved.`); await load(); }
+  };
+
+  const sendMessage = async (event: FormEvent) => {
+    event.preventDefault(); if (!client) return;
+    setBusy(true); setFailure(''); setNotice('');
+    const { data, error: sendError } = await client.functions.invoke('owner-communications', {
+      body: { channel, to: recipient, subject: channel === 'email' ? subject : undefined, text: message, idempotencyKey: crypto.randomUUID() },
+    });
+    setBusy(false);
+    if (sendError || data?.error) setFailure(data?.error || sendError?.message || 'Message could not be sent.');
+    else { setNotice(`${pretty(channel)} message accepted by the provider.`); setRecipient(''); setSubject(''); setMessage(''); await load(); }
+  };
+
+  const channelCards: { id: CommChannel; provider: string; secretNames: string[]; fieldLabel: string; placeholder: string }[] = [
+    { id: 'email', provider: 'Postmark', secretNames: ['POSTMARK_SERVER_TOKEN'], fieldLabel: 'From address', placeholder: 'Platform <noreply@example.com>' },
+    { id: 'sms', provider: 'Twilio', secretNames: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER'], fieldLabel: 'Sender number', placeholder: '+254700000000' },
+    { id: 'whatsapp', provider: 'WhatsApp Cloud', secretNames: ['META_WHATSAPP_ACCESS_TOKEN', 'META_WHATSAPP_PHONE_NUMBER_ID', 'META_GRAPH_API_VERSION'], fieldLabel: 'Business number', placeholder: '+254700000000' },
+  ];
+
+  return <>
+    <PageHeading eyebrow="Owner communications" title="Messages & delivery" subtitle="Configure owner-plane delivery channels, send a direct message, and review privacy-safe provider results." />
+    {notice && <div role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
+    {failure && <div role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{failure}</div>}
+    <div className="grid gap-4 xl:grid-cols-3">
+      {channelCards.map(card => { const config = configs[card.id]; return <section key={card.id} className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="flex items-start justify-between"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700">{card.id === 'email' ? <Mail size={19} /> : <MessageIcon channel={card.id} />}</div><div><h2 className="font-semibold">{pretty(card.id)}</h2><p className="text-xs text-slate-500">{card.provider}</p></div></div><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${config.is_enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{config.is_enabled ? 'Enabled' : 'Disabled'}</span></div>
+        <div className="mt-4 space-y-3">
+          <label className="block text-xs font-medium text-slate-600">{card.fieldLabel}<input value={config.sender_address} onChange={e => patchConfig(card.id, 'sender_address', e.target.value)} disabled={!canConfigure} placeholder={card.placeholder} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 disabled:bg-slate-50" /></label>
+          {card.id === 'email' && <label className="block text-xs font-medium text-slate-600">Reply-to address<input value={config.reply_to} onChange={e => patchConfig(card.id, 'reply_to', e.target.value)} disabled={!canConfigure} placeholder="support@example.com" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 disabled:bg-slate-50" /></label>}
+          <div className="rounded-lg bg-slate-50 p-3"><p className="text-xs font-semibold text-slate-700">Server secrets</p><p className="mt-1 break-words font-mono text-[10px] leading-5 text-slate-500">{card.secretNames.join(' · ')}</p><p className="mt-1 text-xs text-slate-500">Set these in the owner Supabase Edge Function secrets. They are never stored in the browser or database.</p></div>
+          {canConfigure && <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={config.is_enabled} onChange={e => patchConfig(card.id, 'is_enabled', e.target.checked)} className="rounded border-slate-300" />Enable this channel</label>}
+          {canConfigure && <button onClick={() => void saveConfig(card.id)} disabled={saving === card.id} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50">{saving === card.id ? 'Saving…' : 'Save channel settings'}</button>}
+        </div>
+      </section>; })}
+    </div>
+
+    <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+      <form onSubmit={sendMessage} className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="flex items-center gap-2"><Send size={18} className="text-blue-700" /><h2 className="font-semibold">Send a direct message</h2></div>
+        <p className="mt-1 text-sm text-slate-500">Owner-plane, one-recipient notifications only. No marketing or bulk sends.</p>
+        <label className="mt-4 block text-sm font-medium">Channel<select value={channel} onChange={e => setChannel(e.target.value as CommChannel)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><option value="email">Email</option><option value="sms">SMS</option><option value="whatsapp">WhatsApp direct</option></select></label>
+        <label className="mt-3 block text-sm font-medium">Recipient<input required type={channel === 'email' ? 'email' : 'tel'} value={recipient} onChange={e => setRecipient(e.target.value)} placeholder={channel === 'email' ? 'name@example.com' : '+254700000000'} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" /></label>
+        {channel === 'email' && <label className="mt-3 block text-sm font-medium">Subject<input required maxLength={160} value={subject} onChange={e => setSubject(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" /></label>}
+        <label className="mt-3 block text-sm font-medium">Message<textarea required maxLength={2000} rows={5} value={message} onChange={e => setMessage(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" /></label>
+        {channel === 'whatsapp' && <p className="mt-2 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-900">WhatsApp free-form messages are subject to the platform's conversation window and policy. Use an approved template when required.</p>}
+        <button disabled={busy || !configs[channel].is_enabled} className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Sending…' : <><Send size={15} /> Send message</>}</button>
+        {!configs[channel].is_enabled && <p className="mt-2 text-center text-xs text-slate-500">Enable and configure this channel first.</p>}
+      </form>
+
+      <section className="rounded-xl border border-slate-200 bg-white">
+        <div className="border-b border-slate-100 p-5"><h2 className="font-semibold">Recent delivery activity</h2><p className="mt-1 text-xs text-slate-500">Only channel, provider, status, and a recipient hash are retained. Message bodies and addresses are not logged.</p></div>
+        {logs.length ? <div className="overflow-x-auto"><table className="w-full min-w-[580px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr>{['Channel', 'Provider', 'Status', 'Result', 'Time'].map(label => <th key={label} className="px-4 py-3">{label}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{logs.map(row => <tr key={row.id}><td className="px-4 py-3">{pretty(row.channel)}</td><td className="px-4 py-3 text-slate-600">{pretty(row.provider)}</td><td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs ${row.status === 'accepted' ? 'bg-emerald-50 text-emerald-700' : row.status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}>{pretty(row.status)}</span></td><td className="px-4 py-3 text-xs text-slate-500">{row.error_code || '—'}</td><td className="px-4 py-3 text-xs text-slate-500">{new Date(row.created_at).toLocaleString()}</td></tr>)}</tbody></table></div> : <Empty title="No messages yet" text="Successful and failed sends will appear here without storing message bodies or recipient addresses." />}
+      </section>
+    </div>
+  </>;
+}
+
+function MessageIcon({ channel }: { channel: 'sms' | 'whatsapp' }) { return channel === 'sms' ? <MessageSquareText size={19} /> : <MessageCircle size={19} />; }
+
 function Audit({ rows }: { rows: FeedRow[] }) { return <><PageHeading eyebrow="Security & accountability" title="Owner audit log" subtitle="Append-only, hash-chained record of owner-plane actions." /><div className="mb-5 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900"><ShieldCheck size={19} className="mt-0.5 shrink-0" /><p>Audit records are generated by database triggers and cannot be changed or deleted by owner staff. The hash chain can be verified by the owner database function.</p></div><div className="rounded-xl border border-slate-200 bg-white">{rows.length ? <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr>{['Actor', 'Action', 'Target', 'Time', 'Record hash'].map(h => <th key={h} className="px-4 py-3">{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{rows.map(row => <tr key={row.id}><td className="px-4 py-3">{String(row.actor_email || row.actor_id || 'System')}</td><td className="px-4 py-3 font-medium">{String(row.action || row.action_type || 'Owner action')}</td><td className="px-4 py-3 text-slate-500">{String(row.target_type || row.target_id || '—')}</td><td className="px-4 py-3 text-slate-500">{new Date(row.created_at).toLocaleString()}</td><td className="px-4 py-3 font-mono text-xs text-slate-500">{String(row.record_hash || '—').slice(0, 20)}…</td></tr>)}</tbody></table></div> : <Empty title="No owner actions recorded" text="Tenant registration and subsequent owner control-plane activity will be written here." />}</div></>; }
 
 function TenantModal({ form, setForm, onClose, onSubmit, busy }: { form: { name: string; slug: string; plan: string; region: string; primary_contact: string; contact_email: string; isolation_level: string }; setForm: (v: { name: string; slug: string; plan: string; region: string; primary_contact: string; contact_email: string; isolation_level: string }) => void; onClose: () => void; onSubmit: (e: FormEvent) => void; busy: boolean }) { const update = (key: keyof typeof form, value: string) => setForm({ ...form, [key]: value, ...(key === 'name' && !form.slug ? { slug: value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') } : {}) }); return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><form onSubmit={onSubmit} className="max-h-[95vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"><div className="flex items-start justify-between border-b border-slate-100 p-5"><div><h2 className="text-lg font-bold">Register tenant environment</h2><p className="mt-1 text-sm text-slate-500">Environment metadata only. Tenant admins own business setup.</p></div><button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Close"><X size={19} /></button></div><div className="grid gap-4 p-5 sm:grid-cols-2">{([['name', 'Company name'], ['slug', 'Tenant slug'], ['primary_contact', 'Primary contact'], ['contact_email', 'Contact email']] as [keyof typeof form, string][]).map(([key, label]) => <label key={key} className="text-sm font-medium">{label}<input required={key === 'name' || key === 'slug'} type={key === 'contact_email' ? 'email' : 'text'} value={form[key]} onChange={e => update(key, e.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-500" /></label>)}<label className="text-sm font-medium">Plan<select value={form.plan} onChange={e => update('plan', e.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2"><option value="starter">Starter</option><option value="growth">Growth</option><option value="enterprise">Enterprise</option></select></label><label className="text-sm font-medium">Region<select value={form.region} onChange={e => update('region', e.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2"><option value="africa-east">Africa East</option><option value="africa-south">Africa South</option><option value="eu-west">Europe West</option><option value="us-east">US East</option></select></label><label className="text-sm font-medium sm:col-span-2">Isolation model<select value={form.isolation_level} onChange={e => update('isolation_level', e.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2"><option value="database_per_tenant">Dedicated database per tenant</option><option value="schema_per_tenant">Dedicated schema per tenant</option></select></label><div className="sm:col-span-2 rounded-lg bg-blue-50 p-3 text-xs leading-5 text-blue-900">This queues an auditable provisioning job. It does not create the database or user until a trusted provisioning service is connected. No product catalog, pricing, or staff data is entered here.</div></div><div className="flex justify-end gap-2 border-t border-slate-100 p-5"><button type="button" onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancel</button><button disabled={busy} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">{busy ? 'Registering…' : <><Check size={16} /> Create tenant record</>}</button></div></form></div>; }

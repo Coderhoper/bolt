@@ -5,8 +5,8 @@ The owner console is a second Vite entry point at `/owner.html`. It uses the sam
 ## Deploy the owner database
 
 1. Create a dedicated Supabase project for platform operations. Do not reuse the business/tenant project.
-2. Apply `supabase-owner/migrations/20260925000000_owner_control_plane.sql` to that project.
-3. Disable public account registration. Invite the first owner staff account from Supabase Auth, enroll a verified TOTP MFA factor, then assign the platform role in the owner project's SQL editor:
+2. From the repository root, run `supabase db push --workdir project/supabase-owner --linked` to apply that project's isolated migration.
+3. Disable public account registration. Create the first owner staff account through Supabase Auth. The owner sign-in screen enrolls a verified TOTP factor on first sign-in, then requires a code on each new session.
 
    ```sql
    insert into public.owner_staff(user_id, role)
@@ -16,8 +16,9 @@ The owner console is a second Vite entry point at `/owner.html`. It uses the sam
    ```
 
 4. Configure Supabase Auth to require MFA / assurance level `aal2` for owner staff. Database read and provisioning policies also require an `aal2` session. Do not provision shared accounts.
-5. Set `VITE_OWNER_SUPABASE_URL` and `VITE_OWNER_SUPABASE_ANON_KEY` alongside the tenant app's existing variables in the static hosting environment. These are public client settings; never set a service-role key in Vite or a browser.
-6. Build with `npm run build`. The tenant app is emitted as `dist/index.html`; the owner console is `dist/owner.html`.
+5. The owner message console uses Postmark for email, Twilio for SMS, and Meta WhatsApp Cloud for direct messages. Deploy `owner-communications` from `project/supabase-owner/supabase/functions`, then set provider tokens with `supabase secrets set --workdir project/supabase-owner KEY=value`. Required names are listed in the Communications screen. Provider secrets stay in the Edge Function environment; the browser stores only sender metadata. Configure provider domains, verified senders, webhook signatures and message templates before enabling production sends.
+6. Set `VITE_OWNER_SUPABASE_URL` and `VITE_OWNER_SUPABASE_ANON_KEY` alongside the tenant app's existing variables in the static hosting environment. These are public client settings; never set a service-role key in Vite or a browser.
+7. Build with `npm run build`. The tenant app is emitted as `dist/index.html`; the owner console is `dist/owner.html`.
 
 The first owner role must be granted through the trusted Supabase dashboard/SQL editor. The browser cannot grant owner roles or edit audit records. Keep the owner project URL/key distinct from the tenant values in each deployment environment.
 
@@ -28,6 +29,7 @@ The first owner role must be granted through the trusted Supabase dashboard/SQL 
 - Owner staff roles are `platform_admin`, `provisioner`, `support`, `analyst` and `auditor`. Only platform admins and provisioners can queue onboarding; no browser role can change its own role.
 - Metrics store numeric, time-windowed aggregates. The owner project has no tenant product, sales, stock, employee or customer tables.
 - Audit is append-only, uses a serialized SHA-256 hash chain and has a verification function. Export audit records off the database for independent retention.
+- Owner communications can send one-recipient email, SMS, and WhatsApp notifications through a centralized Edge Function. Delivery logs retain channel, provider, status, error code and a recipient hash only; they do not store message content or recipient addresses. Provider delivery webhooks, retries, fallback providers and durable worker processing remain deployment work before high-volume use.
 
 ## Integration seams still required
 

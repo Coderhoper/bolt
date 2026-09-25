@@ -11,6 +11,6 @@ services:
       - key: VITE_SUPABASE_ANON_KEY
         sync: false
       - key: VITE_OWNER_SUPABASE_URL
-        sync: false
+        value: https://hiabtvocfdqguapithdd.supabase.co
       - key: VITE_OWNER_SUPABASE_ANON_KEY
-        sync: false
+        value: sb_publishable_B5gT5oKqmrY6tTjwa2EX-w_B-UKxNpF
