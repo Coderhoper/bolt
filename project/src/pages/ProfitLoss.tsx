@@ -7,7 +7,7 @@ import { logAudit } from '@/lib/audit';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { StatCard } from '@/components/ui/StatCard';
-import { Target, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, BarChart3, CheckCircle } from 'lucide-react';
+import { Target, TrendingUp, TrendingDown, DollarSign, Wallet, BarChart3, CheckCircle } from 'lucide-react';
 import type { ProfitTarget } from '@/types';
 
 export function ProfitLoss() {

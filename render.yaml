@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: hardware-business-manager
+    runtime: static
+    branch: main
+    buildCommand: cd project && npm ci && npm run build
+    staticPublishPath: project/dist
+    envVars:
+      - key: VITE_SUPABASE_URL
+        value: https://qrbqplvyblrpgbnxtjds.supabase.co
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_OWNER_SUPABASE_URL
+        sync: false
+      - key: VITE_OWNER_SUPABASE_ANON_KEY
+        sync: false

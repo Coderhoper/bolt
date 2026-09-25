@@ -1,36 +1,8 @@
--- Create products table and stock movements with trigger to auto-update quantity
-CREATE TABLE IF NOT EXISTS products (
-  id bigserial PRIMARY KEY,
-  name text NOT NULL,
-  sku text,
-  price numeric(12,2),
-  quantity integer NOT NULL DEFAULT 0,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS stock_movements (
-  id bigserial PRIMARY KEY,
-  product_id bigint NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-  change integer NOT NULL,
-  note text,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
--- Trigger function: update product quantity on insert into stock_movements
-CREATE OR REPLACE FUNCTION public.update_product_quantity()
-RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-  UPDATE products
-  SET quantity = COALESCE(products.quantity, 0) + NEW.change
-  WHERE id = NEW.product_id;
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS trg_update_product_quantity ON stock_movements;
-CREATE TRIGGER trg_update_product_quantity
-AFTER INSERT ON stock_movements
-FOR EACH ROW
-EXECUTE PROCEDURE public.update_product_quantity();
-
--- Optional: prevent negative quantity (enforce at application level or add another trigger/constraint)
+-- Superseded legacy schema.
+-- The application schema and stock ledger are created by the earlier business
+-- management migration. Creating bigint `products`/`stock_movements` tables here
+-- was incompatible with that UUID schema and installed a trigger referencing a
+-- nonexistent `change` column. The replacement hardware catalogue is isolated in
+-- the `hardware_catalog` schema by 20260925000000_hardware_catalog.sql.
+DROP TRIGGER IF EXISTS trg_update_product_quantity ON public.stock_movements;
+DROP FUNCTION IF EXISTS public.update_product_quantity();

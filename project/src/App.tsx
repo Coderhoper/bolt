@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ToastProvider } from '@/components/ui/Toast';
 import { Layout } from '@/components/Layout';
@@ -16,11 +16,21 @@ import { Reports } from '@/pages/Reports';
 import { Settings } from '@/pages/Settings';
 import { AuditLogs } from '@/pages/AuditLogs';
 import { Suppliers } from '@/pages/Suppliers';
-import { Variants } from '@/pages/Variants';
 
 function AppContent() {
-  const { session, profile, loading } = useAuth();
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const { session, profile, loading, isAdmin } = useAuth();
+  const [currentPage, setCurrentPage] = useState(() => window.location.hash.replace(/^#\/?/, '') || 'dashboard');
+
+  useEffect(() => {
+    const syncPage = () => setCurrentPage(window.location.hash.replace(/^#\/?/, '') || 'dashboard');
+    window.addEventListener('hashchange', syncPage);
+    return () => window.removeEventListener('hashchange', syncPage);
+  }, []);
+
+  const navigate = (page: string) => {
+    if (window.location.hash !== `#/${page}`) window.location.hash = `/${page}`;
+    setCurrentPage(page);
+  };
 
   if (loading) {
     return (
@@ -38,7 +48,6 @@ function AppContent() {
     switch (currentPage) {
       case 'dashboard': return <Dashboard />;
       case 'products': return <Products />;
-    case 'variants': return <Variants />;
       case 'stock-movements': return <StockMovements />;
       case 'sales': return <Sales />;
       case 'purchases': return <Purchases />;
@@ -48,14 +57,14 @@ function AppContent() {
       case 'salaries': return <Salaries />;
       case 'profit-loss': return <ProfitLoss />;
       case 'reports': return <Reports />;
-      case 'settings': return <Settings />;
-      case 'audit-logs': return <AuditLogs />;
+      case 'settings': return isAdmin ? <Settings /> : <Dashboard />;
+      case 'audit-logs': return isAdmin ? <AuditLogs /> : <Dashboard />;
       default: return <Dashboard />;
     }
   };
 
   return (
-    <Layout currentPage={currentPage} onNavigate={setCurrentPage}>
+    <Layout currentPage={currentPage} onNavigate={navigate}>
       {renderPage()}
     </Layout>
   );

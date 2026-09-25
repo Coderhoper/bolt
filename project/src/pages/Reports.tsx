@@ -5,8 +5,8 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
-  FileText, TrendingUp, Wallet, ShoppingCart, Receipt,
-  Target, DollarSign, Download, Calendar, FileSpreadsheet,
+  TrendingUp, Wallet, ShoppingCart, Receipt,
+  Target, DollarSign, Calendar, FileSpreadsheet,
 } from 'lucide-react';
 import type { Sale, Purchase, Expense, SaleItem } from '@/types';
 
@@ -109,7 +109,7 @@ export function Reports() {
     else if (period === 'weekly') periodLabel = `Week of ${formatDate(selectedDate)}`;
     else periodLabel = `${getMonthName(d.getMonth() + 1)} ${d.getFullYear()}`;
 
-    const rows: string[][] = [];
+    const rows: (string | number)[][] = [];
 
     // Summary sheet header
     rows.push(['BUSINESS PERFORMANCE REPORT']);

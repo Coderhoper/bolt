@@ -1,18 +1,16 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/context/AuthContext';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { StatCard } from '@/components/ui/StatCard';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
-  TrendingUp, TrendingDown, Wallet, Package, AlertTriangle,
-  Users, Target, ArrowUpRight, ArrowDownRight, BarChart3, ShoppingCart,
+  TrendingUp, Wallet, Package, AlertTriangle,
+  Target, BarChart3, ShoppingCart,
 } from 'lucide-react';
 import type { DashboardSummary, Sale, Product } from '@/types';
 
 export function Dashboard() {
-  const { isAdmin } = useAuth();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [recentSales, setRecentSales] = useState<Sale[]>([]);
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);

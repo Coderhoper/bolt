@@ -41,6 +41,9 @@ export interface Supplier {
 
 export interface Product {
   id: string;
+  catalog_variant_id?: number | null;
+  catalog_sku?: string | null;
+  catalog_size_specification?: string | null;
   name: string;
   category_id: string | null;
   subcategory_id?: string | null;
@@ -143,6 +146,7 @@ export interface SaleItem {
   profit: number;
   product?: Product;
   product_variant?: ProductVariant;
+  sale?: Sale;
 }
 
 export interface Expense {

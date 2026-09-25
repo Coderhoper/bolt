@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
-  ShoppingCart, Plus, Search, Eye, Trash2, X,
+  ShoppingCart, Plus, Search, Eye, X,
 } from 'lucide-react';
 import type { Sale, Product, SaleItem } from '@/types';
 
@@ -17,16 +17,12 @@ export function Sales() {
   const { showToast } = useToast();
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [subcategories, setSubcategories] = useState<any[]>([]);
-  const [variants, setVariants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [viewSale, setViewSale] = useState<Sale | null>(null);
   const [viewItems, setViewItems] = useState<SaleItem[]>([]);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [saleItems, setSaleItems] = useState<{ category_id?: string; subcategory_id?: string; product_id?: string; product_variant_id?: string; quantity: string }[]>([]);
+  const [saleItems, setSaleItems] = useState<{ product_id: string; quantity: string }[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
@@ -37,7 +33,8 @@ export function Sales() {
     setLoading(true);
     const [{ data: s }, { data: p }] = await Promise.all([
       supabase.from('sales').select('*').order('created_at', { ascending: false }),
-      supabase.from('products').select('*').eq('status', 'active').order('name'),
+      supabase.from('products').select('*').eq('status', 'active')
+        .not('catalog_variant_id', 'is', null).order('name'),
     ]);
     setSales(s || []);
     setProducts(p || []);
@@ -46,46 +43,26 @@ export function Sales() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  useEffect(() => {
-    (async () => {
-      const [{ data: cats }, { data: subs }, { data: vars }] = await Promise.all([
-        supabase.from('categories').select('*').order('name'),
-        supabase.from('subcategories').select('*').order('name'),
-        supabase.from('product_variants').select('*, product:products(*)').order('created_at'),
-      ]);
-      setCategories(cats || []);
-      setSubcategories(subs || []);
-      setVariants(vars || []);
-    })();
-  }, []);
-
   const filtered = sales.filter(s =>
     (s.sale_number || '').toLowerCase().includes(search.toLowerCase()) ||
     (s.customer_name || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const addItem = () => {
-    setSaleItems([...saleItems, { category_id: '', subcategory_id: '', product_id: '', product_variant_id: '', quantity: '1' }]);
+    setSaleItems(items => [...items, { product_id: '', quantity: '1' }]);
   };
 
   const removeItem = (index: number) => {
     setSaleItems(saleItems.filter((_, i) => i !== index));
   };
 
-  const updateItem = (index: number, field: string, value: string) => {
-    const updated = [...saleItems];
-    updated[index] = { ...updated[index], [field]: value };
-    setSaleItems(updated);
+  const updateItem = (index: number, field: 'product_id' | 'quantity', value: string) => {
+    setSaleItems(items => items.map((item, i) => i === index ? { ...item, [field]: value } : item));
   };
 
   const calculateTotal = () => {
     return saleItems.reduce((sum, item) => {
-      const qty = parseInt(item.quantity) || 0;
-      if (item.product_variant_id) {
-        const v = variants.find(x => x.id === item.product_variant_id);
-        if (!v) return sum;
-        return sum + qty * v.selling_price;
-      }
+      const qty = Number(item.quantity) || 0;
       const product = products.find(p => p.id === item.product_id);
       if (!product) return sum;
       return sum + qty * product.selling_price;
@@ -94,12 +71,7 @@ export function Sales() {
 
   const calculateProfit = () => {
     return saleItems.reduce((sum, item) => {
-      const qty = parseInt(item.quantity) || 0;
-      if (item.product_variant_id) {
-        const v = variants.find(x => x.id === item.product_variant_id);
-        if (!v) return sum;
-        return sum + qty * (v.selling_price - v.cost_price);
-      }
+      const qty = Number(item.quantity) || 0;
       const product = products.find(p => p.id === item.product_id);
       if (!product) return sum;
       return sum + qty * (product.selling_price - product.buying_price);
@@ -107,6 +79,10 @@ export function Sales() {
   };
 
   const openAdd = () => {
+    if (!products.length) {
+      showToast('Add a catalogue item to inventory before recording a sale', 'error');
+      return;
+    }
     setSaleItems([{ product_id: '', quantity: '1' }]);
     setCustomerName('');
     setPaymentMethod('cash');
@@ -116,17 +92,19 @@ export function Sales() {
   };
 
   const handleSave = async () => {
-    if (saleItems.length === 0 || saleItems.some(i => !i.product_id || !i.quantity)) {
+    if (saleItems.length === 0 || saleItems.some(i => {
+      const product = products.find(p => p.id === i.product_id);
+      const quantity = Number(i.quantity);
+      return !product?.catalog_variant_id || !Number.isFinite(quantity) || quantity <= 0;
+    })) {
       showToast('Please fill in all sale items', 'error');
       return;
     }
 
     setSaving(true);
     const itemsJson = saleItems.map(i => ({
-      product_id: i.product_id || null,
-      product_variant_id: i.product_variant_id || null,
-      quantity: parseInt(i.quantity),
-      selling_price: i.product_variant_id ? undefined : undefined,
+      product_id: i.product_id,
+      quantity: Number(i.quantity),
     }));
 
     const { data, error } = await supabase.rpc('process_sale', {
@@ -158,20 +136,6 @@ export function Sales() {
     setViewItems(data || []);
   };
 
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    const sale = sales.find(s => s.id === deleteId);
-    const { error } = await supabase.from('sales').delete().eq('id', deleteId);
-    if (error) {
-      showToast('Failed to delete sale', 'error');
-    } else {
-      await logAudit('DELETE_SALE', 'sale', deleteId, `Deleted sale ${sale?.sale_number || ''}`);
-      showToast('Sale deleted', 'success');
-      loadData();
-    }
-    setDeleteId(null);
-  };
-
   if (loading) {
     return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
   }
@@ -182,7 +146,7 @@ export function Sales() {
         title="Sales"
         subtitle={`${sales.length} sales recorded`}
         actions={isAdmin && (
-          <button onClick={openAdd} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+          <button onClick={openAdd} disabled={!products.length} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
             <Plus size={18} /> New Sale
           </button>
         )}
@@ -201,8 +165,8 @@ export function Sales() {
 
       {filtered.length === 0 ? (
         <div className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/60">
-          <EmptyState icon={ShoppingCart} title="No sales recorded" description="Record your first sale to start tracking revenue." action={isAdmin && (
-            <button onClick={openAdd} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+          <EmptyState icon={ShoppingCart} title="No sales recorded" description={products.length ? "Record your first sale to start tracking revenue." : "Add catalogue products to inventory before recording a sale."} action={isAdmin && (
+            <button onClick={openAdd} disabled={!products.length} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
               <Plus size={18} /> New Sale
             </button>
           )} />
@@ -236,9 +200,6 @@ export function Sales() {
                         <div className="flex items-center justify-end gap-2">
                           <button onClick={() => viewSaleDetails(sale)} className="rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600">
                             <Eye size={16} />
-                          </button>
-                          <button onClick={() => setDeleteId(sale.id)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600">
-                            <Trash2 size={16} />
                           </button>
                         </div>
                       </td>
@@ -291,83 +252,31 @@ export function Sales() {
           <div className="rounded-xl border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
               <p className="text-sm font-semibold text-slate-900">Sale Items</p>
-              <button onClick={addItem} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700">
+              <button onClick={addItem} disabled={!products.length} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50">
                 <Plus size={16} /> Add Item
               </button>
             </div>
             <div className="divide-y divide-slate-100">
               {saleItems.map((item, index) => {
-                const availableSubcategories = subcategories.filter(s => s.category_id === item.category_id);
-                const availableProducts = products.filter(p => p.subcategory_id === item.subcategory_id || p.category_id === item.category_id);
-                const availableVariants = variants.filter(v => v.product_id === item.product_id);
-                const selectedVariant = variants.find(v => v.id === item.product_variant_id);
                 const selectedProduct = products.find(p => p.id === item.product_id);
-                const qty = parseInt(item.quantity) || 0;
-                const lineTotal = selectedVariant ? qty * selectedVariant.selling_price : (selectedProduct ? qty * selectedProduct.selling_price : 0);
+                const quantity = Number(item.quantity) || 0;
+                const lineTotal = selectedProduct ? quantity * selectedProduct.selling_price : 0;
 
                 return (
                   <div key={index} className="flex items-center gap-3 px-4 py-3">
-                    <div className="flex-1 grid grid-cols-1 gap-2">
-                      <div className="grid grid-cols-3 gap-2">
-                        <select
-                          value={item.category_id || ''}
-                          onChange={e => {
-                            updateItem(index, 'category_id', e.target.value);
-                            updateItem(index, 'subcategory_id', '');
-                            updateItem(index, 'product_id', '');
-                            updateItem(index, 'product_variant_id', '');
-                          }}
-                          className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-blue-500 outline-none"
-                        >
-                          <option value="">Category</option>
-                          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-
-                        <select
-                          value={item.subcategory_id || ''}
-                          onChange={e => {
-                            updateItem(index, 'subcategory_id', e.target.value);
-                            updateItem(index, 'product_id', '');
-                            updateItem(index, 'product_variant_id', '');
-                          }}
-                          className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-blue-500 outline-none"
-                        >
-                          <option value="">Subcategory</option>
-                          {availableSubcategories.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
-
-                        <select
-                          value={item.product_id || ''}
-                          onChange={e => {
-                            updateItem(index, 'product_id', e.target.value);
-                            updateItem(index, 'product_variant_id', '');
-                          }}
-                          className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-blue-500 outline-none"
-                        >
-                          <option value="">Product</option>
-                          {availableProducts.map(p => (
-                            <option key={p.id} value={p.id} disabled={p.current_stock <= 0}>
-                              {p.name} ({p.current_stock} {p.unit})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
+                    <div className="grid min-w-0 flex-1 grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_5rem_7rem_7rem]">
                       <select
-                        value={item.product_variant_id || ''}
-                        onChange={e => updateItem(index, 'product_variant_id', e.target.value)}
+                        value={item.product_id}
+                        onChange={e => updateItem(index, 'product_id', e.target.value)}
                         className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-blue-500 outline-none"
                       >
-                        <option value="">Variant (optional)</option>
-                        {availableVariants.map(v => (
-                          <option key={v.id} value={v.id} disabled={v.current_stock <= 0}>
-                            {v.product?.name} · {v.brand || ''} {v.size ? `· ${v.size}` : ''} ({v.current_stock} {v.unit || 'pcs'})
+                        <option value="">Select catalogue product</option>
+                        {products.map(product => (
+                          <option key={product.id} value={product.id} disabled={product.current_stock <= 0}>
+                            {product.name} · {product.catalog_sku} · {product.current_stock} {product.unit}
                           </option>
                         ))}
                       </select>
-                    </div>
-
-                    <div className="w-20">
                       <input
                         type="number"
                         step="1"
@@ -377,21 +286,20 @@ export function Sales() {
                         className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-blue-500 outline-none"
                         placeholder="Qty"
                       />
+                      <div className="text-sm text-slate-500 sm:text-right">
+                        {selectedProduct ? `@ ${formatCurrency(selectedProduct.selling_price)}` : '—'}
+                      </div>
+                      <div className="text-right text-sm font-medium text-slate-900">
+                        {formatCurrency(lineTotal)}
+                      </div>
                     </div>
-                    <div className="w-28 text-sm text-slate-500 text-right">
-                      {selectedVariant ? `@ ${formatCurrency(selectedVariant.selling_price)}` : (selectedProduct ? `@ ${formatCurrency(selectedProduct.selling_price)}` : '—')}
-                    </div>
-                    <div className="w-24 text-right text-sm font-medium text-slate-900">
-                      {formatCurrency(lineTotal)}
-                    </div>
-                    <button onClick={() => removeItem(index)} className="rounded-lg p-1 text-slate-400 hover:bg-red-50 hover:text-red-600">
+                    <button onClick={() => removeItem(index)} className="rounded-lg p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove sale item">
                       <X size={16} />
                     </button>
                   </div>
                 );
-              })}
-              {saleItems.length === 0 && (
-                <div className="px-4 py-8 text-center text-sm text-slate-400">No items added. Click "Add Item" to start.</div>
+              })}              {saleItems.length === 0 && (
+                <div className="px-4 py-8 text-center text-sm text-slate-400">No items added. Select a catalogue product to start.</div>
               )}
             </div>
             <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 bg-slate-50">
@@ -407,7 +315,7 @@ export function Sales() {
           </div>
 
           <div className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-700">
-            Prices are set universally on each product. To change a price, update it from the Products page.
+            Products and prices come from catalogue-linked inventory. Sale totals and stock are verified when saved.
           </div>
 
           <div>
@@ -492,15 +400,6 @@ export function Sales() {
         )}
       </Modal>
 
-      {isAdmin && deleteId && (
-        <div className="fixed bottom-4 right-4 z-30 rounded-xl bg-white shadow-2xl ring-1 ring-slate-200 p-4 max-w-xs">
-          <p className="text-sm text-slate-700 mb-3">Delete this sale? This will not restore stock levels.</p>
-          <div className="flex justify-end gap-2">
-            <button onClick={() => setDeleteId(null)} className="rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">Cancel</button>
-            <button onClick={handleDelete} className="rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">Delete</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -17,7 +17,6 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, page: 'dashboard' },
   { label: 'Products', icon: Package, page: 'products' },
-  { label: 'Variants', icon: Package, page: 'variants' },
   { label: 'Stock Movements', icon: TrendingUp, page: 'stock-movements' },
   { label: 'Sales', icon: ShoppingCart, page: 'sales' },
   { label: 'Purchases', icon: Receipt, page: 'purchases' },

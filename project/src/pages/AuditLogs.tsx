@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { formatDateTime } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { ScrollText, Search, Filter } from 'lucide-react';
+import { ScrollText, Search } from 'lucide-react';
 import type { AuditLog } from '@/types';
 
 const ACTION_COLORS: Record<string, string> = {

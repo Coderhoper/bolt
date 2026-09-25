@@ -1,14 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
-import { formatCurrency } from '@/lib/utils';
 import { logAudit } from '@/lib/audit';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
   Settings as SettingsIcon, Plus, Trash2, Users, Mail,
-  Building2, Target, Save, UserPlus, Shield, X,
+  Building2, Save, UserPlus, Shield, X,
 } from 'lucide-react';
 import type { SystemSettings, Profile } from '@/types';
 
@@ -25,12 +23,12 @@ export function Settings() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [{ data: s }, { data: profilesData }] = await Promise.all([
+    const [{ data: s }, { data: userData, error: usersError }] = await Promise.all([
       supabase.from('system_settings').select('*').maybeSingle(),
-      supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+      supabase.functions.invoke('admin-users', { body: { action: 'list' } }),
     ]);
     setSettings(s as SystemSettings || null);
-    const profilesWithEmail: Profile[] = (profilesData || []).map((p: Profile) => p);
+    const profilesWithEmail: Profile[] = usersError ? [] : (userData?.profiles || []);
     setProfiles(profilesWithEmail);
     setLoading(false);
   }, []);
@@ -76,7 +74,7 @@ export function Settings() {
   };
 
   const handleAddUser = async () => {
-    if (!newUser.name || !newUser.email || !newUser.password) {
+    if (!newUser.name || !newUser.email || newUser.password.length < 8) {
       showToast('Please fill in all fields', 'error');
       return;
     }
@@ -84,10 +82,8 @@ export function Settings() {
       showToast('Maximum 3 owners allowed', 'error');
       return;
     }
-    const { error } = await supabase.auth.admin.createUser({
-      email: newUser.email,
-      password: newUser.password,
-      user_metadata: { name: newUser.name, role: newUser.role },
+    const { error } = await supabase.functions.invoke('admin-users', {
+      body: { action: 'create', name: newUser.name, email: newUser.email, password: newUser.password, role: newUser.role },
     });
     if (error) {
       showToast(error.message, 'error');
@@ -102,8 +98,10 @@ export function Settings() {
 
   const toggleUserStatus = async (profile: Profile) => {
     const newStatus = profile.status === 'active' ? 'inactive' : 'active';
-    const { error } = await supabase.from('profiles').update({ status: newStatus }).eq('id', profile.id);
-    if (error) { showToast('Failed to update user status', 'error'); return; }
+    const { error } = await supabase.functions.invoke('admin-users', {
+      body: { action: 'status', id: profile.id, status: newStatus },
+    });
+    if (error) { showToast(error.message || 'Failed to update user status', 'error'); return; }
     await logAudit('UPDATE_USER_STATUS', 'profile', profile.id, `${newStatus === 'active' ? 'Activated' : 'Deactivated'} user: ${profile.name}`);
     showToast(`User ${newStatus === 'active' ? 'activated' : 'deactivated'}`, 'success');
     loadData();
@@ -298,7 +296,7 @@ export function Settings() {
                       value={newUser.password}
                       onChange={e => setNewUser({ ...newUser, password: e.target.value })}
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
-                      placeholder="Minimum 6 characters"
+                      placeholder="At least 8 characters"
                     />
                   </div>
                   <div>

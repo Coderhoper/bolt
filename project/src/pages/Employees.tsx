@@ -2,13 +2,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
-import { formatCurrency, formatDate, maskNationalId } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/lib/utils';
 import { logAudit } from '@/lib/audit';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Users, Plus, Pencil, Trash2, Search, Lock, Eye, EyeOff } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, Search, Lock } from 'lucide-react';
 import type { Employee } from '@/types';
 
 export function Employees() {
@@ -20,7 +20,6 @@ export function Employees() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [showSensitive, setShowSensitive] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '', national_id: '', phone: '', address: '', position: '',
     date_employed: '', basic_salary: '', employment_status: 'active', emergency_contact: '',
@@ -28,7 +27,7 @@ export function Employees() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('employees').select('*').order('full_name');
+    const { data } = await supabase.from('employee_directory').select('*').order('full_name');
     setEmployees(data || []);
     setLoading(false);
   }, []);
@@ -52,7 +51,7 @@ export function Employees() {
   const openEdit = (e: Employee) => {
     setEditingId(e.id);
     setFormData({
-      full_name: e.full_name, national_id: e.national_id || '', phone: e.phone || '',
+      full_name: e.full_name, national_id: '', phone: e.phone || '',
       address: e.address || '', position: e.position || '',
       date_employed: e.date_employed || '', basic_salary: String(e.basic_salary),
       employment_status: e.employment_status, emergency_contact: e.emergency_contact || '',
@@ -61,17 +60,18 @@ export function Employees() {
   };
 
   const handleSave = async () => {
-    const payload = {
+    const payload: Partial<Employee> = {
       full_name: formData.full_name,
-      national_id: formData.national_id || null,
+      national_id: formData.national_id.trim() || null,
       phone: formData.phone || null,
       address: formData.address || null,
       position: formData.position || null,
       date_employed: formData.date_employed || null,
       basic_salary: parseFloat(formData.basic_salary) || 0,
-      employment_status: formData.employment_status,
+      employment_status: formData.employment_status as Employee['employment_status'],
       emergency_contact: formData.emergency_contact || null,
     };
+    if (editingId && !formData.national_id.trim()) delete payload.national_id;
     if (!payload.full_name) { showToast('Employee name is required', 'error'); return; }
 
     if (editingId) {
@@ -80,9 +80,9 @@ export function Employees() {
       await logAudit('UPDATE_EMPLOYEE', 'employee', editingId, `Updated employee: ${payload.full_name}`);
       showToast('Employee updated', 'success');
     } else {
-      const { data, error } = await supabase.from('employees').insert(payload).select().single();
+      const { error } = await supabase.from('employees').insert(payload);
       if (error) { showToast('Failed to add employee', 'error'); return; }
-      await logAudit('CREATE_EMPLOYEE', 'employee', data.id, `Added employee: ${payload.full_name}`);
+      await logAudit('CREATE_EMPLOYEE', 'employee', null, `Added employee: ${payload.full_name}`);
       showToast('Employee added', 'success');
     }
     setModalOpen(false);
@@ -127,15 +127,6 @@ export function Employees() {
             className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none"
           />
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => setShowSensitive(!showSensitive)}
-            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
-          >
-            {showSensitive ? <EyeOff size={16} /> : <Eye size={16} />}
-            {showSensitive ? 'Hide' : 'Show'} IDs
-          </button>
-        )}
       </div>
 
       {filtered.length === 0 ? (
@@ -169,7 +160,7 @@ export function Employees() {
                     <td className="px-4 py-3 text-sm text-slate-600">{e.position || '—'}</td>
                     <td className="px-4 py-3 text-sm text-slate-600">
                       <span className="flex items-center gap-1">
-                        {isAdmin && showSensitive ? e.national_id || '—' : maskNationalId(e.national_id)}
+                        {e.national_id || '—'}
                         {!isAdmin && e.national_id && <Lock size={12} className="text-slate-400" />}
                       </span>
                     </td>
@@ -224,7 +215,7 @@ export function Employees() {
               value={formData.national_id}
               onChange={e => setFormData({ ...formData, national_id: e.target.value })}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
-              placeholder="12345678"
+              placeholder={editingId ? 'Leave blank to keep unchanged' : '12345678'}
             />
           </div>
           <div>

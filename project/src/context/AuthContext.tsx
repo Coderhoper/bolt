@@ -23,6 +23,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (!session) setLoading(false);
+    }).catch(() => {
+      setSession(null);
+      setProfile(null);
+      setLoading(false);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -51,12 +55,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (!cancelled) {
-        if (data && !error) {
+        if (data && !error && data.status === 'active') {
           const profileData: Profile = {
             ...data,
             email: session.user.email || '',
           };
           setProfile(profileData);
+        } else {
+          setProfile(null);
         }
         setLoading(false);
       }

@@ -6,7 +6,7 @@ import { formatNumber, formatDateTime } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { TrendingUp, Plus, ArrowUp, ArrowDown, Settings } from 'lucide-react';
+import { TrendingUp, ArrowUp, ArrowDown, Settings } from 'lucide-react';
 import type { StockMovement, Product } from '@/types';
 
 export function StockMovements() {

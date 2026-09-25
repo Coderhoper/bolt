@@ -9,24 +9,32 @@ import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
-  Package, Plus, Search, Pencil, Trash2, AlertTriangle, Filter,
+  Package, Plus, Search, Pencil, Trash2, AlertTriangle,
 } from 'lucide-react';
-import type { Product, Category, Supplier, ProductVariant, Subcategory } from '@/types';
+import type { Product, Category, Supplier } from '@/types';
+
+interface CatalogVariant {
+  id: number; sku: string; barcode: string | null; product_name: string;
+  product_description: string | null; subcategory: string; category: string;
+  brand: string | null; size_specification: string | null; unit: string;
+  variant_description: string | null; cost_price: number; selling_price: number;
+}
 
 export function Products() {
   const { isAdmin } = useAuth();
   const { showToast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [catalog, setCatalog] = useState<CatalogVariant[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [selectedCatalogId, setSelectedCatalogId] = useState('');
+  const [catalogSearch, setCatalogSearch] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '', category_id: '', supplier_id: '', brand: '', unit: 'pcs',
@@ -41,14 +49,10 @@ export function Products() {
       supabase.from('categories').select('*').order('name'),
       supabase.from('suppliers').select('*').order('name'),
     ]);
-    const [{ data: subs }, { data: vars }] = await Promise.all([
-      supabase.from('subcategories').select('*').order('name'),
-      supabase.from('product_variants').select('*, product:products(*)').order('created_at'),
-    ]);
+    const { data: catalogItems } = await supabase.from('hardware_catalog_variants').select('*').order('product_name').limit(5000);
     setProducts(prods || []);
     setCategories(cats || []);
-    setSubcategories(subs || []);
-    setVariants(vars || []);
+    setCatalog((catalogItems || []) as CatalogVariant[]);
     setSuppliers(sups || []);
     setLoading(false);
   }, []);
@@ -57,7 +61,8 @@ export function Products() {
 
   const filtered = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.brand || '').toLowerCase().includes(search.toLowerCase());
+      (p.brand || '').toLowerCase().includes(search.toLowerCase()) ||
+      (p.catalog_sku || '').toLowerCase().includes(search.toLowerCase());
     const matchesCategory = filterCategory === 'all' || p.category_id === filterCategory;
     const matchesStatus = filterStatus === 'all' || p.status === filterStatus;
     return matchesSearch && matchesCategory && matchesStatus;
@@ -65,6 +70,8 @@ export function Products() {
 
   const openAdd = () => {
     setEditingProduct(null);
+    setSelectedCatalogId('');
+    setCatalogSearch('');
     setFormData({
       name: '', category_id: '', supplier_id: '', brand: '', unit: 'pcs',
       buying_price: '', selling_price: '', current_stock: '',
@@ -75,6 +82,7 @@ export function Products() {
 
   const openEdit = (p: Product) => {
     setEditingProduct(p);
+    setSelectedCatalogId(String(p.catalog_variant_id || ''));
     setFormData({
       name: p.name, category_id: p.category_id || '', supplier_id: p.supplier_id || '',
       brand: p.brand || '', unit: p.unit, buying_price: String(p.buying_price),
@@ -86,24 +94,28 @@ export function Products() {
   };
 
   const handleSave = async () => {
+    const catalogItem = catalog.find(item => String(item.id) === selectedCatalogId);
+    if (!editingProduct && !catalogItem) {
+      showToast('Select an item from the hardware catalogue', 'error');
+      return;
+    }
     const payload = {
-      name: formData.name,
-      category_id: formData.category_id || null,
+      name: editingProduct?.name || catalogItem?.product_name || '',
+      ...(!editingProduct && { catalog_variant_id: catalogItem?.id }),
+      ...(!editingProduct && { catalog_sku: catalogItem?.sku }),
+      category_id: editingProduct?.category_id ||
+        (catalogItem && categories.find(category => category.name === catalogItem.category)?.id) ||
+        formData.category_id || null,
       supplier_id: formData.supplier_id || null,
-      brand: formData.brand || null,
-      unit: formData.unit,
+      brand: editingProduct?.brand || catalogItem?.brand || null,
+      unit: editingProduct?.unit || catalogItem?.unit || 'piece',
       buying_price: parseInt(formData.buying_price) || 0,
       selling_price: parseInt(formData.selling_price) || 0,
-      current_stock: parseInt(formData.current_stock) || 0,
+      ...(!editingProduct && { current_stock: parseInt(formData.current_stock) || 0 }),
       minimum_stock: parseInt(formData.minimum_stock) || 0,
       maximum_stock: parseInt(formData.maximum_stock) || 0,
       status: formData.status,
     };
-
-    if (!payload.name) {
-      showToast('Product name is required', 'error');
-      return;
-    }
 
     if (editingProduct) {
       const { error } = await supabase.from('products').update(payload).eq('id', editingProduct.id);
@@ -118,16 +130,10 @@ export function Products() {
     } else {
       const { data, error } = await supabase.from('products').insert(payload).select().single();
       if (error) {
-        showToast('Failed to create product', 'error');
+        showToast(error.message || 'Failed to add catalogue product', 'error');
       } else {
-        if (payload.current_stock > 0) {
-          await supabase.from('stock_movements').insert({
-            product_id: data.id, movement_type: 'opening', quantity: payload.current_stock,
-            reference_type: 'opening', note: 'Opening stock',
-          });
-        }
         await logAudit('CREATE_PRODUCT', 'product', data.id, `Created product: ${payload.name}`, null, payload);
-        showToast('Product created successfully', 'success');
+        showToast('Catalogue item added to inventory', 'success');
         setModalOpen(false);
         loadData();
       }
@@ -159,7 +165,7 @@ export function Products() {
         subtitle={`${products.length} products in inventory`}
         actions={isAdmin && (
           <button onClick={openAdd} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
-            <Plus size={18} /> Add Product
+            <Plus size={18} /> Add from Catalogue
           </button>
         )}
       />
@@ -196,9 +202,9 @@ export function Products() {
 
       {filtered.length === 0 ? (
         <div className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/60">
-          <EmptyState icon={Package} title="No products found" description="Add your first product to start tracking inventory." action={isAdmin && (
+          <EmptyState icon={Package} title="No products found" description="Select an item from the hardware catalogue to add it to inventory." action={isAdmin && (
             <button onClick={openAdd} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-              <Plus size={18} /> Add Product
+              <Plus size={18} /> Add from Catalogue
             </button>
           )} />
         </div>
@@ -228,7 +234,7 @@ export function Products() {
                         <div className="flex items-center gap-2">
                           <div>
                             <p className="text-sm font-medium text-slate-900">{p.name}</p>
-                            <p className="text-xs text-slate-400">{p.brand || '—'} · {p.unit}</p>
+                            <p className="text-xs text-slate-400">{p.catalog_sku ? `${p.catalog_sku} · ` : ''}{p.brand || '—'}{p.catalog_size_specification ? ` · ${p.catalog_size_specification}` : ''} · {p.unit}</p>
                           </div>
                           {lowStock && (
                             <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
@@ -273,17 +279,26 @@ export function Products() {
         </div>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingProduct ? 'Edit Product' : 'Add Product'} size="lg">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingProduct ? 'Edit Inventory Item' : 'Add from Hardware Catalogue'} size="lg">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Product Name *</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={e => setFormData({ ...formData, name: e.target.value })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none"
-              placeholder="e.g. Cement"
-            />
+            <label className="block text-sm font-medium text-slate-700 mb-1">Hardware Catalogue Item *</label>
+            {editingProduct ? (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">{editingProduct.name} · {editingProduct.catalog_sku || 'Legacy inventory item'}</div>
+            ) : (
+              <>
+              <input value={catalogSearch} onChange={e => setCatalogSearch(e.target.value)} placeholder="Search name, SKU, brand, size, or category" className="mb-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none" />
+              <select value={selectedCatalogId} onChange={e => {
+                const item = catalog.find(option => String(option.id) === e.target.value);
+                setSelectedCatalogId(e.target.value);
+                if (item) setFormData(current => ({ ...current, buying_price: String(item.cost_price), selling_price: String(item.selling_price) }));
+              }} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none">
+                <option value="">Select a catalogue item…</option>
+                {catalog.filter(item => `${item.product_name} ${item.sku} ${item.brand || ''} ${item.size_specification || ''} ${item.category}`.toLowerCase().includes(catalogSearch.toLowerCase())).map(item => <option key={item.id} value={item.id}>{item.product_name} · {item.brand || 'Generic'} · {item.size_specification || item.unit} · {item.sku}</option>)}
+              </select>
+              </>
+            )}
+            {!editingProduct && catalog.length === 0 && <p className="mt-1 text-xs text-amber-700">Catalogue is unavailable or not imported yet. Apply the hardware catalogue migration first.</p>}
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
@@ -309,23 +324,11 @@ export function Products() {
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Brand</label>
-            <input
-              type="text"
-              value={formData.brand}
-              onChange={e => setFormData({ ...formData, brand: e.target.value })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
-              placeholder="e.g. Bamburi"
-            />
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">{editingProduct?.brand || catalog.find(item => String(item.id) === selectedCatalogId)?.brand || 'From catalogue'}</div>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Unit</label>
-            <input
-              type="text"
-              value={formData.unit}
-              onChange={e => setFormData({ ...formData, unit: e.target.value })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
-              placeholder="e.g. pcs, bags, boxes"
-            />
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">{editingProduct?.unit || catalog.find(item => String(item.id) === selectedCatalogId)?.unit || 'From catalogue'}</div>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Buying Price (integer)</label>
@@ -411,7 +414,7 @@ export function Products() {
             Cancel
           </button>
           <button onClick={handleSave} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-            {editingProduct ? 'Save Changes' : 'Create Product'}
+            {editingProduct ? 'Save Changes' : 'Add Inventory Item'}
           </button>
         </div>
       </Modal>

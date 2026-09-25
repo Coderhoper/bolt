@@ -1,5 +1,3 @@
-import { supabase } from '@/lib/supabase';
-
 export async function logAudit(
   action: string,
   entityType: string,
@@ -8,18 +6,6 @@ export async function logAudit(
   oldValues?: Record<string, unknown> | null,
   newValues?: Record<string, unknown> | null,
 ) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const userId = session?.user?.id;
-  const userName = session?.user?.email || 'Unknown';
-
-  await supabase.from('audit_logs').insert({
-    user_id: userId,
-    user_name: userName,
-    action,
-    entity_type: entityType,
-    entity_id: entityId,
-    description,
-    old_values: oldValues || null,
-    new_values: newValues || null,
-  });
+  // Mutations are audited by database triggers in the same transaction.
+  void action; void entityType; void entityId; void description; void oldValues; void newValues;
 }
