@@ -112,9 +112,12 @@ export function OwnerConsole() {
           const verifiedFactor = factorResult.data?.totp.find(item => item.status === 'verified');
           if (verifiedFactor) return { factorId: verifiedFactor.id, secret: '', error: '' };
 
-          // A previous interrupted setup leaves an unusable unverified factor behind.
-          // Clear it before enrolling so reloads can always produce a fresh setup key.
-          const unfinishedFactors = factorResult.data?.totp.filter(item => item.status !== 'verified') || [];
+          // Supabase's `totp` list contains verified factors only; pending enrollments
+          // are exposed in `all`. Remove them so a previous setup cannot block a retry
+          // with the duplicate friendly-name error.
+          const unfinishedFactors = factorResult.data?.all.filter(
+            item => item.factor_type === 'totp' && item.status === 'unverified',
+          ) || [];
           for (const factor of unfinishedFactors) {
             const { error: cleanupError } = await client.auth.mfa.unenroll({ factorId: factor.id });
             if (cleanupError) throw cleanupError;
