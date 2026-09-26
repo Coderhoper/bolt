@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import {
   Activity, AlertTriangle, ArrowUpRight, BadgeCheck, Building2, Check, ChevronRight,
@@ -12,6 +12,7 @@ type Page = 'overview' | 'tenants' | 'onboarding' | 'analytics' | 'anomalies' | 
 type Tenant = { id: string; name: string; slug: string; plan: string; region: string; status: string; isolation_level: string; primary_contact: string | null; contact_email: string | null; created_at: string };
 type FeedRow = { id: string; tenant_id?: string | null; title?: string; summary?: string | null; status?: string; severity?: string; created_at: string; name?: string; kind?: string; state?: string; [key: string]: unknown };
 type OwnerRole = 'platform_admin' | 'provisioner' | 'support' | 'analyst' | 'auditor';
+type MfaPreparation = { factorId: string; secret: string; error: string };
 
 const localMfaBypass = import.meta.env.DEV
   && import.meta.env.VITE_OWNER_LOCAL_MFA_BYPASS === 'true'
@@ -46,6 +47,8 @@ export function OwnerConsole() {
   const [enrollmentSecret, setEnrollmentSecret] = useState('');
   const [mfaCode, setMfaCode] = useState('');
   const [mfaError, setMfaError] = useState('');
+  const [mfaRetry, setMfaRetry] = useState(0);
+  const mfaPreparationRef = useRef<{ key: string; promise: Promise<MfaPreparation> } | null>(null);
   const [busy, setBusy] = useState(false);
   const [page, setPage] = useState<Page>(() => (window.location.hash.slice(2) as Page) || 'overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -78,40 +81,70 @@ export function OwnerConsole() {
     return () => { active = false; };
   }, [session]);
 
+  const sessionUserId = session?.user.id;
   useEffect(() => {
     let active = true;
     const client = ownerSupabase;
-    if (!session || !client || localMfaBypass) { setMfaChecking(false); return; }
+    if (!sessionUserId || !client || localMfaBypass) {
+      mfaPreparationRef.current = null;
+      setMfaChecking(false);
+      setMfaError('');
+      setMfaFactor('');
+      setEnrollmentSecret('');
+      return;
+    }
     setMfaChecking(true);
-    Promise.all([
-      client.auth.mfa.getAuthenticatorAssuranceLevel(),
-      client.auth.mfa.listFactors(),
-    ]).then(async ([{ data: assurance }, { data: factors }]) => {
-      if (!active) return;
-      if (assurance?.currentLevel === 'aal2') { setMfaFactor(''); setMfaChecking(false); return; }
-      const factor = factors?.totp.find(item => item.status === 'verified');
-      if (factor) setMfaFactor(factor.id);
-      else {
-        const { data: enrollment, error: enrollError } = await client.auth.mfa.enroll({
-          factorType: 'totp', issuer: 'Hardware Platform Owner', friendlyName: 'Owner console authenticator',
-        });
-        if (enrollError || !enrollment?.totp?.secret) {
-          setAccessError(enrollError?.message || 'Could not start authenticator enrollment.');
-          await client.auth.signOut();
-        } else {
-          setMfaFactor(enrollment.id);
-          setEnrollmentSecret(enrollment.totp.secret);
+    setMfaError('');
+    setMfaFactor('');
+    setEnrollmentSecret('');
+    const key = `${sessionUserId}:${mfaRetry}`;
+    if (mfaPreparationRef.current?.key !== key) {
+      const promise = (async (): Promise<MfaPreparation> => {
+        try {
+          const [assuranceResult, factorResult] = await Promise.all([
+            client.auth.mfa.getAuthenticatorAssuranceLevel(),
+            client.auth.mfa.listFactors(),
+          ]);
+          if (assuranceResult.error) throw assuranceResult.error;
+          if (factorResult.error) throw factorResult.error;
+
+          if (assuranceResult.data?.currentLevel === 'aal2') return { factorId: '', secret: '', error: '' };
+          const verifiedFactor = factorResult.data?.totp.find(item => item.status === 'verified');
+          if (verifiedFactor) return { factorId: verifiedFactor.id, secret: '', error: '' };
+
+          // A previous interrupted setup leaves an unusable unverified factor behind.
+          // Clear it before enrolling so reloads can always produce a fresh setup key.
+          const unfinishedFactors = factorResult.data?.totp.filter(item => item.status !== 'verified') || [];
+          for (const factor of unfinishedFactors) {
+            const { error: cleanupError } = await client.auth.mfa.unenroll({ factorId: factor.id });
+            if (cleanupError) throw cleanupError;
+          }
+
+          const { data: enrollment, error: enrollError } = await client.auth.mfa.enroll({
+            factorType: 'totp', issuer: 'Hardware Platform Owner', friendlyName: 'Owner console authenticator',
+          });
+          if (enrollError) throw enrollError;
+          if (!enrollment?.totp?.secret) throw new Error('Supabase did not return an authenticator setup key. Retry the setup.');
+          return { factorId: enrollment.id, secret: enrollment.totp.secret, error: '' };
+        } catch (error) {
+          return {
+            factorId: '', secret: '',
+            error: error instanceof Error ? error.message : 'Could not reach owner authentication. Check your connection and retry.',
+          };
         }
-      }
-      if (active) setMfaChecking(false);
-    }).catch(async () => {
+      })();
+      mfaPreparationRef.current = { key, promise };
+    }
+    void mfaPreparationRef.current.promise.then(result => {
       if (!active) return;
-      setAccessError('Could not verify owner MFA assurance. Please sign in again.');
-      await client.auth.signOut();
+      setMfaFactor(result.factorId);
+      setEnrollmentSecret(result.secret);
+      setMfaError(result.error);
+    }).finally(() => {
       if (active) setMfaChecking(false);
     });
     return () => { active = false; };
-  }, [session]);
+  }, [sessionUserId, mfaRetry]);
 
   const loadData = useCallback(async () => {
     if (!ownerSupabase || !session || !role) return;
@@ -190,6 +223,7 @@ export function OwnerConsole() {
   if (session && !localMfaBypass && mfaChecking) return <Loading />;
   if (session && !localMfaBypass && enrollmentSecret) return <MfaEnrollment secret={enrollmentSecret} code={mfaCode} setCode={setMfaCode} onSubmit={verifyMfa} busy={busy} error={mfaError} />;
   if (session && !localMfaBypass && mfaFactor) return <MfaChallenge code={mfaCode} setCode={setMfaCode} onSubmit={verifyMfa} busy={busy} error={mfaError} />;
+  if (session && !localMfaBypass && mfaError) return <MfaSetupError error={mfaError} onRetry={() => setMfaRetry(value => value + 1)} onSignOut={() => void ownerSupabase!.auth.signOut()} />;
   if (!session) return <SignIn email={email} password={password} setEmail={setEmail} setPassword={setPassword} onSubmit={signIn} busy={busy} error={accessError} />;
   if (!role) return <AccessDenied email={session.user.email || ''} error={accessError} signOut={() => ownerSupabase!.auth.signOut()} />;
 
@@ -244,6 +278,17 @@ function Loading() { return <div className="flex min-h-screen items-center justi
 function ConfigurationNotice() { return <div className="flex min-h-screen items-center justify-center bg-slate-50 p-5"><div className="max-w-xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm"><div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900 text-white"><Database size={22} /></div><h1 className="text-xl font-bold">Owner plane is not configured</h1><p className="mt-2 text-sm leading-6 text-slate-600">Configure <code className="rounded bg-slate-100 px-1">VITE_OWNER_SUPABASE_URL</code> and <code className="rounded bg-slate-100 px-1">VITE_OWNER_SUPABASE_ANON_KEY</code> for a dedicated owner Supabase project. This console will not connect to the tenant database as a fallback.</p><p className="mt-4 text-xs text-slate-500">Apply the migrations in <code>supabase-owner/migrations</code> before enabling owner staff sign-in.</p></div></div>; }
 function SignIn({ email, password, setEmail, setPassword, onSubmit, busy, error }: { email: string; password: string; setEmail: (v: string) => void; setPassword: (v: string) => void; onSubmit: (e: FormEvent) => void; busy: boolean; error: string }) { return <div className="flex min-h-screen items-center justify-center bg-slate-50 p-5"><form onSubmit={onSubmit} className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm"><div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900 text-white"><ShieldCheck size={23} /></div><p className="text-xs font-semibold uppercase tracking-wider text-blue-700">Platform operations</p><h1 className="mt-2 text-2xl font-bold">Owner sign in</h1><p className="mt-2 text-sm text-slate-500">Use your separately provisioned platform staff identity.</p>{error && <p role="alert" className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}<label className="mt-6 block text-sm font-medium">Email<input required type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label><label className="mt-4 block text-sm font-medium">Password<input required type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label><button disabled={busy} className="mt-6 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">{busy ? 'Signing in…' : 'Sign in securely'}</button><p className="mt-4 flex items-center justify-center gap-1 text-xs text-slate-500"><LockKeyhole size={13} /> Owner identity is separate from tenant accounts</p></form></div>; }
 function MfaChallenge({ code, setCode, onSubmit, busy, error }: { code: string; setCode: (v: string) => void; onSubmit: (e: FormEvent) => void; busy: boolean; error: string }) { return <div className="flex min-h-screen items-center justify-center bg-slate-50 p-5"><form onSubmit={onSubmit} className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm"><div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><LockKeyhole size={22} /></div><h1 className="mt-4 text-xl font-bold">Verify your identity</h1><p className="mt-2 text-sm text-slate-500">Enter the current code from your enrolled authenticator app. Owner data stays locked until MFA succeeds.</p>{error && <p role="alert" className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}<label className="mt-5 block text-sm font-medium">Authenticator code<input required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-center text-xl tracking-[0.4em] outline-none focus:border-blue-500" /></label><button disabled={busy || code.length !== 6} className="mt-5 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">{busy ? 'Verifying…' : 'Verify and continue'}</button></form></div>; }
+
+function MfaSetupError({ error, onRetry, onSignOut }: { error: string; onRetry: () => void; onSignOut: () => void }) {
+  return <div className="flex min-h-screen items-center justify-center bg-slate-50 p-5"><div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-700"><AlertTriangle size={22} /></div>
+    <h1 className="mt-4 text-xl font-bold">Authenticator setup could not start</h1>
+    <p className="mt-2 text-sm leading-6 text-slate-600">Your sign-in is still active. Retry to request a fresh authenticator key.</p>
+    <p role="alert" className="mt-4 break-words rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>
+    <button type="button" onClick={onRetry} className="mt-5 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">Retry setup</button>
+    <button type="button" onClick={onSignOut} className="mt-3 w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Sign out</button>
+  </div></div>;
+}
 
 function MfaEnrollment({ secret, code, setCode, onSubmit, busy, error }: { secret: string; code: string; setCode: (v: string) => void; onSubmit: (e: FormEvent) => void; busy: boolean; error: string }) {
   return <div className="flex min-h-screen items-center justify-center bg-slate-50 p-5"><form onSubmit={onSubmit} className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
