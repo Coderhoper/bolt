@@ -45,24 +45,6 @@ function projectUrl(ref: string) {
   return `https://${ref}.supabase.co`;
 }
 
-function projectRegion(region: string): string | null {
-  // Supabase currently has no African project region. These are the nearest
-  // supported regions: Mumbai for East Africa and Ireland for Southern Africa.
-  const regions: Record<string, string> = {
-    'africa-east': 'ap-south-1',
-    'africa-south': 'eu-west-1',
-    'eu-west': 'eu-west-1',
-    'us-east': 'us-east-1',
-  };
-  return regions[region] || null;
-}
-
-function randomDatabasePassword() {
-  const bytes = new Uint8Array(48);
-  crypto.getRandomValues(bytes);
-  return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
-}
-
 function flattenKeys(payload: unknown): Record<string, unknown>[] {
   if (Array.isArray(payload)) return payload.filter(item => !!item && typeof item === 'object') as Record<string, unknown>[];
   if (payload && typeof payload === 'object') {
@@ -181,7 +163,7 @@ function publicManagementError(status: number, step: string) {
   if (status === 401 || status === 403) {
     return {
       code: 'management_permission_denied',
-      message: 'The Supabase Management token needs organization project creation, project API key management, database migration, and Auth configuration permissions.',
+      message: 'The Supabase Management token needs organization project listing, shared-project API key management, database migration, and Auth configuration permissions.',
     };
   }
   if (status === 404) return { code: 'management_resource_not_found', message: 'The configured Supabase organization or tenant project could not be found.' };
@@ -189,9 +171,7 @@ function publicManagementError(status: number, step: string) {
   if (status === 400 || status === 402) {
     return {
       code: 'project_capacity_or_configuration',
-      message: step === 'creating_project'
-        ? 'Supabase rejected project creation. Check organization project capacity, billing plan, region, and the Management token permissions.'
-        : 'Supabase rejected this setup step. Check the tenant project settings and retry the provisioning job.',
+      message: 'Supabase rejected this shared-project setup step. Check the shared project settings and Management token permissions, then retry the provisioning job.',
     };
   }
   return { code: `supabase_http_${status}`, message: `Supabase returned HTTP ${status} during ${step.replaceAll('_', ' ')}. Retry the job or inspect the project logs.` };
@@ -271,8 +251,9 @@ Deno.serve(async request => {
 
   const managementToken = Deno.env.get('lapdav');
   const organizationSlug = Deno.env.get('org_slug');
-  if (!managementToken || !organizationSlug) {
-    return reply(request, { error: 'Set the owner project secrets named lapdav and org_slug' }, 503);
+  const sharedProjectRef = Deno.env.get('tenant_shared_project_ref') || '';
+  if (!managementToken || !organizationSlug || !/^[a-z0-9]{20}$/.test(sharedProjectRef)) {
+    return reply(request, { error: 'Set owner Edge Function secrets lapdav, org_slug, and tenant_shared_project_ref (the existing tenant database project reference).' }, 503);
   }
 
   if (payload.action === 'check') {
@@ -280,10 +261,17 @@ Deno.serve(async request => {
       `/organizations/${encodeURIComponent(organizationSlug)}/projects?limit=100`);
     if (response.ok) {
       const projects = await bodyOf(response);
+      const sharedProject = Array.isArray(projects)
+        ? (projects as Record<string, unknown>[]).find(item => item.ref === sharedProjectRef)
+        : null;
+      if (!sharedProject) {
+        return reply(request, { error: 'The configured tenant_shared_project_ref was not found in the configured Supabase organization.' }, 502);
+      }
       return reply(request, {
         status: 'connected',
         projectCount: Array.isArray(projects) ? projects.length : null,
-        detail: 'The token can list projects in the configured organization. Provisioning also requires project creation, API key, database migration, and Auth configuration permissions; project capacity depends on the organization plan.',
+        sharedProject: String(sharedProject.name || sharedProjectRef),
+        detail: 'The token can access the configured existing tenant project. Provisioning will reuse it, apply pending schema changes once, and create isolated tenant memberships. No project is created.',
       });
     }
     if (response.status === 401) return reply(request, { error: 'The lapdav token was rejected or has expired' }, 502);
@@ -320,11 +308,16 @@ Deno.serve(async request => {
   const leaseToken = String(claim.lease_token);
   const slug = String(claim.slug);
   const name = String(claim.name);
-  const region = String(claim.region);
   const adminEmail = String(claim.admin_email);
+  const isolationLevel = String(claim.isolation_level || '');
   let ref = typeof claim.project_ref === 'string' ? claim.project_ref : '';
   let tenantUrl = typeof claim.supabase_url === 'string' ? claim.supabase_url : '';
   let publishableKey = typeof claim.publishable_key === 'string' ? claim.publishable_key : '';
+  if (isolationLevel === 'shared_database') {
+    if (ref !== sharedProjectRef) publishableKey = '';
+    ref = sharedProjectRef;
+    tenantUrl = projectUrl(sharedProjectRef);
+  }
   let step = String(claim.step || 'queued');
   let stepIndex = Number(claim.step_index || 0);
 
@@ -360,36 +353,28 @@ Deno.serve(async request => {
   };
 
   try {
-    if (step === 'queued' || step === 'creating_project') {
-      step = 'creating_project';
-      const targetRegion = projectRegion(region);
-      if (!targetRegion) return await failed('unsupported_region', 'Choose a supported tenant region before provisioning.');
+    if (isolationLevel !== 'shared_database') {
+      return await failed('unsupported_isolation_mode', 'This tenant is not configured to use the shared database. Ask a platform administrator to update its isolation mode.');
+    }
 
-      // A deterministic name recovers a create that succeeded just before a
-      // worker timeout, keeping project creation idempotent across retries.
-      const projectsResponse = await managementRequest(managementToken,
-        `/organizations/${encodeURIComponent(organizationSlug)}/projects?limit=100`);
-      if (!projectsResponse.ok) return await managementFailure(projectsResponse);
-      const projectsPayload = await bodyOf(projectsResponse);
-      const projects = Array.isArray(projectsPayload) ? projectsPayload as Record<string, unknown>[] : [];
-      const projectName = `Hardware ${slug} ${tenantId.slice(0, 8)}`;
-      let project = projects.find(item => item.name === projectName);
-
-      if (!project) {
-        const createResponse = await managementRequest(managementToken, '/projects', 'POST', {
-          organization_slug: organizationSlug,
-          name: projectName,
-          region: targetRegion,
-          db_pass: randomDatabasePassword(),
-        });
-        if (!createResponse.ok) return await managementFailure(createResponse);
-        project = await bodyOf(createResponse) as Record<string, unknown> | null;
-      }
-      ref = String(project?.ref || '');
-      if (!/^[a-z0-9]{20}$/.test(ref)) return await failed('project_reference_missing', 'Supabase created or found a project but returned no valid project reference. Retry the job.');
+    // Reuse the single configured tenant project for every new business.
+    // The project reference is fixed in Edge Function secrets, never accepted
+    // from the browser or tenant record.
+    if (step === 'queued' || step === 'creating_project' || step === 'connecting_shared_database') {
+      step = 'connecting_shared_database';
+      ref = sharedProjectRef;
       tenantUrl = projectUrl(ref);
-      await save('waiting_for_project', 0);
-      return reply(request, { complete: false, step: 'waiting_for_project', waitSeconds: 12, message: 'Tenant project created; waiting for its database and Auth services.' });
+      const healthResponse = await managementRequest(managementToken, `/projects/${encodeURIComponent(ref)}/health`);
+      if (!healthResponse.ok) return await managementFailure(healthResponse);
+      if (!allServicesHealthy(await bodyOf(healthResponse))) {
+        await save('connecting_shared_database', 0);
+        return reply(request, { complete: false, step: 'connecting_shared_database', waitSeconds: 12, message: 'Waiting for the shared tenant database and Auth services.' });
+      }
+      const keys = await getProjectKeys(managementToken, ref);
+      if (keys.error) return await managementFailure(new Response(null, { status: keys.error }));
+      publishableKey = keys.publishable;
+      await save('migrating', 0);
+      return reply(request, { complete: false, step: 'migrating', stepIndex: 0, stepCount: tenantMigrations.length, message: 'Connected to the shared project; applying any pending schema and catalogue migrations.' });
     }
 
     if (!ref) return await failed('project_reference_missing', 'This tenant job has no saved Supabase project reference. Retry it to recover the project.');
@@ -516,18 +501,26 @@ Deno.serve(async request => {
       }
 
       const sqlEmail = adminEmail.replaceAll("'", "''");
+      const sqlSlug = slug.replaceAll("'", "''");
+      const sqlName = name.replaceAll("'", "''");
       const promoteResponse = await managementRequest(managementToken,
         `/projects/${encodeURIComponent(ref)}/database/query`, 'POST', {
-          query: `DO $tenant_owner_admin$
-DECLARE profiles_updated integer;
+          query: `DO $tenant_owner_membership$
+DECLARE invited_user_id uuid;
 BEGIN
-  UPDATE public.profiles AS profile SET role = 'admin', status = 'active'
-  FROM auth.users AS auth_user
-  WHERE auth_user.id = profile.id AND lower(auth_user.email) = lower('${sqlEmail}');
-  GET DIAGNOSTICS profiles_updated = ROW_COUNT;
-  IF profiles_updated <> 1 THEN RAISE EXCEPTION 'Tenant administrator profile was not created'; END IF;
+  SELECT id INTO invited_user_id FROM auth.users WHERE lower(email) = lower('${sqlEmail}') LIMIT 1;
+  IF invited_user_id IS NULL THEN RAISE EXCEPTION 'Tenant administrator Auth user was not created'; END IF;
+  INSERT INTO public.business_tenants(id, slug, name, status)
+    VALUES ('${tenantId}'::uuid, '${sqlSlug}', '${sqlName}', 'active')
+    ON CONFLICT (id) DO UPDATE SET slug = EXCLUDED.slug, name = EXCLUDED.name, status = 'active';
+  INSERT INTO public.tenant_memberships(tenant_id, user_id, role, status)
+    VALUES ('${tenantId}'::uuid, invited_user_id, 'admin', 'active')
+    ON CONFLICT (tenant_id, user_id) DO UPDATE SET role = 'admin', status = 'active';
+  INSERT INTO public.system_settings(tenant_id, business_name, currency)
+    VALUES ('${tenantId}'::uuid, '${sqlName}', 'KSh')
+    ON CONFLICT (tenant_id) DO UPDATE SET business_name = EXCLUDED.business_name;
 END
-$tenant_owner_admin$;`,
+$tenant_owner_membership$;`,
           read_only: false,
         });
       if (!promoteResponse.ok) return await managementFailure(promoteResponse);
@@ -539,7 +532,7 @@ $tenant_owner_admin$;`,
         step: 'complete',
         slug,
         tenantUrl: `${(Deno.env.get('TENANT_APP_BASE_URL') || productionAppBaseUrl).replace(/\/$/, '')}/t/${slug}`,
-        message: 'Tenant database, catalogue, sign-in and first administrator invitation are ready.',
+        message: 'Shared tenant workspace, catalogue, sign-in and first administrator invitation are ready.',
       });
     }
 

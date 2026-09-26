@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { isTenantContextActive, supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/Toast';
 import { logAudit } from '@/lib/audit';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -12,6 +12,7 @@ import type { SystemSettings, Profile } from '@/types';
 
 export function Settings() {
   const { showToast } = useToast();
+  const tenantMode = isTenantContextActive();
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,15 +75,15 @@ export function Settings() {
   };
 
   const handleAddUser = async () => {
-    if (!newUser.name || !newUser.email || newUser.password.length < 8) {
-      showToast('Please fill in all fields', 'error');
+    if (!newUser.name.trim() || !newUser.email.trim() || (!tenantMode && newUser.password.length < 8)) {
+      showToast(tenantMode ? 'Enter a name and valid email address' : 'Please fill in all fields', 'error');
       return;
     }
-    if (newUser.role === 'owner' && profiles.filter(p => p.role === 'owner').length >= 3) {
+    if (!tenantMode && newUser.role === 'owner' && profiles.filter(p => p.role === 'owner').length >= 3) {
       showToast('Maximum 3 owners allowed', 'error');
       return;
     }
-    const { error } = await supabase.functions.invoke('admin-users', {
+    const { data, error } = await supabase.functions.invoke('admin-users', {
       body: { action: 'create', name: newUser.name, email: newUser.email, password: newUser.password, role: newUser.role },
     });
     if (error) {
@@ -90,7 +91,7 @@ export function Settings() {
       return;
     }
     await logAudit('CREATE_USER', 'profile', null, `Created ${newUser.role} user: ${newUser.name} (${newUser.email})`);
-    showToast('User created successfully', 'success');
+    showToast(data?.message || (tenantMode ? 'Invitation sent successfully' : 'User created successfully'), 'success');
     setShowAddUser(false);
     setNewUser({ name: '', email: '', password: '', role: 'owner' });
     loadData();
@@ -289,7 +290,7 @@ export function Settings() {
                       placeholder="user@business.com"
                     />
                   </div>
-                  <div>
+                  {!tenantMode && <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
                     <input
                       type="password"
@@ -298,7 +299,8 @@ export function Settings() {
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
                       placeholder="At least 8 characters"
                     />
-                  </div>
+                  </div>}
+                  {tenantMode && <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800">We’ll email an invitation. The new member will set their own password. Their access is limited to this business.</p>}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
                     <select
@@ -306,17 +308,17 @@ export function Settings() {
                       onChange={e => setNewUser({ ...newUser, role: e.target.value })}
                       className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
                     >
-                      <option value="owner">Owner (Read-only)</option>
+                      <option value="owner">{tenantMode ? 'Staff (Standard access)' : 'Owner (Read-only)'}</option>
                       <option value="admin">Administrator (Full Access)</option>
                     </select>
-                    {newUser.role === 'owner' && ownerCount >= 3 && (
+                    {!tenantMode && newUser.role === 'owner' && ownerCount >= 3 && (
                       <p className="mt-1 text-xs text-rose-600">Maximum 3 owners already reached</p>
                     )}
                   </div>
                 </div>
                 <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100">
                   <button onClick={() => setShowAddUser(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
-                  <button onClick={handleAddUser} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Create User</button>
+                  <button onClick={handleAddUser} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">{tenantMode ? 'Send invite' : 'Create User'}</button>
                 </div>
               </div>
             </div>

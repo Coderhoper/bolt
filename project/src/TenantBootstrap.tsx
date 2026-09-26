@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import App from './App';
 import { setTenantSupabase } from '@/lib/supabase';
 
-type TenantRuntime = { tenant_name: string; supabase_url: string; publishable_key: string };
+type TenantRuntime = { tenant_id: string | null; tenant_name: string; supabase_url: string; publishable_key: string };
 
 export function TenantBootstrap({ slug }: { slug: string }) {
   const [state, setState] = useState<{ ready: boolean; error: string }>({ ready: false, error: '' });
@@ -26,13 +26,16 @@ export function TenantBootstrap({ slug }: { slug: string }) {
       if (error) throw new Error('Could not load this tenant. Please try again or contact your system administrator.');
       const runtime = (Array.isArray(data) ? data[0] : data) as TenantRuntime | null;
       if (!runtime) throw new Error('This tenant is not active yet. Ask your system administrator to finish onboarding.');
-      if (!/^https:\/\/[a-z0-9]{20}\.supabase\.co$/.test(runtime.supabase_url)
+      if ((runtime.tenant_id !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(runtime.tenant_id))
+        || !/^https:\/\/[a-z0-9]{20}\.supabase\.co$/.test(runtime.supabase_url)
         || !/^sb_publishable_[A-Za-z0-9_-]+$/.test(runtime.publishable_key)) {
         throw new Error('This tenant has an invalid connection configuration. Please contact your system administrator.');
       }
 
       if (!mounted) return;
-      setTenantSupabase(runtime.supabase_url, runtime.publishable_key);
+      // Dedicated legacy tenants remain on their original single-business
+      // profile authorization. New shared tenants use tenant membership scope.
+      setTenantSupabase(runtime.supabase_url, runtime.publishable_key, runtime.tenant_id || '');
       document.title = `${runtime.tenant_name} · Business Performance System`;
       setState({ ready: true, error: '' });
     };
@@ -58,7 +61,7 @@ export function TenantBootstrap({ slug }: { slug: string }) {
         : <>
           <div className="mx-auto h-10 w-10 animate-spin rounded-full border-b-2 border-blue-600" />
           <h1 className="mt-4 text-lg font-semibold text-slate-900">Connecting to your workspace</h1>
-          <p className="mt-2 text-sm text-slate-500">Loading the tenant’s isolated business database.</p>
+          <p className="mt-2 text-sm text-slate-500">Loading your secure business workspace.</p>
         </>}
     </section>
   </div>;

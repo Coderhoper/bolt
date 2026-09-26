@@ -16,6 +16,8 @@ import { Reports } from '@/pages/Reports';
 import { Settings } from '@/pages/Settings';
 import { AuditLogs } from '@/pages/AuditLogs';
 import { Suppliers } from '@/pages/Suppliers';
+import { isTenantContextActive } from '@/lib/supabase';
+import { invokeTenantOwnerBridge } from '@/lib/tenantOwnerBridge';
 
 function AppContent() {
   const { session, profile, loading, isAdmin } = useAuth();
@@ -26,6 +28,15 @@ function AppContent() {
     window.addEventListener('hashchange', syncPage);
     return () => window.removeEventListener('hashchange', syncPage);
   }, []);
+
+  useEffect(() => {
+    if (!session || !profile || !isTenantContextActive()) return;
+    const knownPages = new Set(['dashboard', 'products', 'sales', 'purchases', 'stock-movements', 'reports', 'settings']);
+    const metricPage = knownPages.has(currentPage) ? currentPage : 'other';
+    // Send only a route bucket and increment; never include sales, stock,
+    // employees, customers, or transaction details in owner telemetry.
+    void invokeTenantOwnerBridge({ action: 'metric', page: metricPage }).catch(() => undefined);
+  }, [currentPage, session?.user.id, profile?.id]);
 
   const navigate = (page: string) => {
     if (window.location.hash !== `#/${page}`) window.location.hash = `/${page}`;

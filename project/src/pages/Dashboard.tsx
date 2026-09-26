@@ -4,6 +4,9 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { StatCard } from '@/components/ui/StatCard';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { TenantOwnerDesk } from '@/components/TenantOwnerDesk';
+import { isTenantContextActive } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
 import {
   TrendingUp, Wallet, Package, AlertTriangle,
   Target, BarChart3, ShoppingCart,
@@ -11,6 +14,7 @@ import {
 import type { DashboardSummary, Sale, Product } from '@/types';
 
 export function Dashboard() {
+  const { isAdmin } = useAuth();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [recentSales, setRecentSales] = useState<Sale[]>([]);
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
@@ -90,6 +94,8 @@ export function Dashboard() {
         title="Dashboard"
         subtitle={`${formatDate(summary?.start_date || new Date())} — ${formatDate(summary?.end_date || new Date())}`}
       />
+
+      {isTenantContextActive() && isAdmin && <TenantOwnerDesk />}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
         <StatCard label="Total Sales" value={formatCurrency(summary?.total_sales || 0)} icon={TrendingUp} color="blue" />

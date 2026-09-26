@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase } from '@/lib/supabase';
+import { isTenantContextActive, supabase } from '@/lib/supabase';
 import type { Profile, UserRole } from '@/types';
 
 interface AuthContextValue {
@@ -53,11 +53,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .select('*')
         .eq('id', session.user.id)
         .maybeSingle();
+      let role = data?.role;
+      let status = data?.status;
+      if (isTenantContextActive()) {
+        const { data: membershipResult, error: membershipError } = await supabase.rpc('get_current_tenant_membership');
+        const membership = Array.isArray(membershipResult) ? membershipResult[0] : membershipResult;
+        if (membershipError || !membership) {
+          if (!cancelled) { setProfile(null); setLoading(false); }
+          return;
+        }
+        role = membership.role;
+        status = membership.status;
+      }
 
       if (!cancelled) {
-        if (data && !error && data.status === 'active') {
+        if (data && !error && status === 'active') {
           const profileData: Profile = {
             ...data,
+            role,
+            status,
             email: session.user.email || '',
           };
           setProfile(profileData);

@@ -8,3 +8,8 @@ major_version = 17
 
 [functions.owner-provisioning]
 verify_jwt = true
+
+# The tenant bridge accepts a tenant-issued JWT, so it verifies that token
+# against the routed tenant project itself before allowing an owner operation.
+[functions.tenant-bridge]
+verify_jwt = false
