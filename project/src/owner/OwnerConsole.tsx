@@ -244,6 +244,14 @@ export function OwnerConsole() {
     setProvisioningTenantId(tenant.id);
     setError(''); setProvisioningError(''); setSuccessNotice('');
     setProvisioningMessage('Checking the tenant job and Supabase organization…');
+    const formatFailure = (payload: unknown, fallback: string) => {
+      if (!payload || typeof payload !== 'object') return fallback;
+      const detail = payload as Record<string, unknown>;
+      const parts = [typeof detail.error === 'string' ? detail.error : fallback];
+      if (typeof detail.step === 'string') parts.push(`Step: ${detail.step.replace(/_/g, ' ')}`);
+      if (typeof detail.code === 'string') parts.push(`Code: ${detail.code}`);
+      return parts.join(' · ');
+    };
     try {
       if (email !== tenant.contact_email) {
         const { error: emailError } = await ownerSupabase.rpc('owner_set_tenant_admin_email', {
@@ -260,12 +268,12 @@ export function OwnerConsole() {
           let detail = invokeError.message;
           const response = (invokeError as unknown as { context?: Response }).context;
           if (response) {
-            try { const body = await response.clone().json(); if (typeof body?.error === 'string') detail = body.error; }
+            try { detail = formatFailure(await response.clone().json(), detail); }
             catch { /* retain the Functions client's message */ }
           }
           throw new Error(detail);
         }
-        if (data?.error) throw new Error(data.error);
+        if (data?.error) throw new Error(formatFailure(data, String(data.error)));
         if (data?.complete) {
           const url = data.tenantUrl || `${window.location.origin}/t/${tenant.slug}`;
           setProvisioningMessage('Tenant database, catalogue and administrator invite are ready.');

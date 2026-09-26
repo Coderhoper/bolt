@@ -197,6 +197,27 @@ function publicManagementError(status: number, step: string) {
   return { code: `supabase_http_${status}`, message: `Supabase returned HTTP ${status} during ${step.replaceAll('_', ' ')}. Retry the job or inspect the project logs.` };
 }
 
+function safeManagementReason(payload: unknown) {
+  if (!payload || typeof payload !== 'object') return '';
+  const record = payload as Record<string, unknown>;
+  const candidates = [record.message, record.error_description, record.error, record.detail, record.details, record.hint];
+  for (const candidate of candidates) {
+    const value = typeof candidate === 'string'
+      ? candidate
+      : candidate && typeof candidate === 'object' && typeof (candidate as Record<string, unknown>).message === 'string'
+        ? String((candidate as Record<string, unknown>).message)
+        : '';
+    if (!value) continue;
+    return value
+      .replace(/Bearer\s+\S+/gi, 'Bearer [redacted]')
+      .replace(/sb_(?:secret|publishable)_[A-Za-z0-9_-]+/g, '[redacted Supabase key]')
+      .replace(/postgres(?:ql)?:\/\/[^\s'"]+/gi, '[redacted database URL]')
+      .replace(/[\r\n\t]+/g, ' ')
+      .slice(0, 320);
+  }
+  return '';
+}
+
 Deno.serve(async request => {
   if (request.method === 'OPTIONS') {
     const origin = request.headers.get('Origin') || '';
@@ -333,11 +354,14 @@ Deno.serve(async request => {
   };
   const managementFailure = async (response: Response) => {
     const detail = publicManagementError(response.status, step);
-    return await failed(detail.code, detail.message);
+    const reason = safeManagementReason(await bodyOf(response));
+    const diagnostic = `Step: ${step.replaceAll('_', ' ')}. HTTP ${response.status}.`;
+    return await failed(detail.code, `${detail.message} ${diagnostic}${reason ? ` Supabase says: ${reason}` : ''}`);
   };
 
   try {
     if (step === 'queued' || step === 'creating_project') {
+      step = 'creating_project';
       const targetRegion = projectRegion(region);
       if (!targetRegion) return await failed('unsupported_region', 'Choose a supported tenant region before provisioning.');
 
