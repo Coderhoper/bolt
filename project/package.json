@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "owner:embed-migrations": "node scripts/embed-tenant-migrations.mjs"
   },
   "dependencies": {
     "@supabase/server": "^1.6.1",
