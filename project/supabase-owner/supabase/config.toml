@@ -5,3 +5,6 @@ enabled = true
 
 [db]
 major_version = 17
+
+[functions.owner-provisioning]
+verify_jwt = true

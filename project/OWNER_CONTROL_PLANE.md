@@ -16,9 +16,10 @@ The owner console is a second Vite entry point at `/owner.html`. It uses the sam
    ```
 
 4. Configure Supabase Auth to require MFA / assurance level `aal2` for owner staff. Database read and provisioning policies also require an `aal2` session. Do not provision shared accounts.
-5. The owner message console uses Postmark for email, Twilio for SMS, and Meta WhatsApp Cloud for direct messages. Deploy `owner-communications` from `project/supabase-owner/supabase/functions`, then set provider tokens with `supabase secrets set --workdir project/supabase-owner KEY=value`. Required names are listed in the Communications screen. Provider secrets stay in the Edge Function environment; the browser stores only sender metadata. Configure provider domains, verified senders, webhook signatures and message templates before enabling production sends.
-6. Set `VITE_OWNER_SUPABASE_URL` and `VITE_OWNER_SUPABASE_ANON_KEY` alongside the tenant app's existing variables in the static hosting environment. These are public client settings; never set a service-role key in Vite or a browser.
-7. Build with `npm run build`. The tenant app is emitted as `dist/index.html`; the owner console is `dist/owner.html`.
+5. Owner-side Supabase organization connectivity is checked by the authenticated `owner-provisioning` Edge Function. Set the Management API token as the owner project secret `lapdav` and the target organization slug as `org_slug`. Use a scoped PAT with `Organization Projects: Read-write` for that organization; do not grant access to every organization or project. Deploy the function with `supabase functions deploy owner-provisioning --workdir project/supabase-owner --project-ref <owner-project-ref>`. In the owner console, open **Platform → Check connection**. This check makes a read-only organization-projects request; it does not create a project. Project creation, tenant migration, and admin invitation remain disabled until separately implemented and explicitly enabled.
+6. The owner message console uses Postmark for email, Twilio for SMS, and Meta WhatsApp Cloud for direct messages. Deploy `owner-communications` from `project/supabase-owner/supabase/functions`, then set provider tokens with `supabase secrets set --workdir project/supabase-owner KEY=value`. Required names are listed in the Communications screen. Provider secrets stay in the Edge Function environment; the browser stores only sender metadata. Configure provider domains, verified senders, webhook signatures and message templates before enabling production sends.
+7. Set `VITE_OWNER_SUPABASE_URL` and `VITE_OWNER_SUPABASE_ANON_KEY` alongside the tenant app's existing variables in the static hosting environment. These are public client settings; never set a service-role key in Vite or a browser.
+8. Build with `npm run build`. The tenant app is emitted as `dist/index.html`; the owner console is `dist/owner.html`.
 
 The first owner role must be granted through the trusted Supabase dashboard/SQL editor. The browser cannot grant owner roles or edit audit records. Keep the owner project URL/key distinct from the tenant values in each deployment environment.
 
@@ -33,7 +34,7 @@ The first owner role must be granted through the trusted Supabase dashboard/SQL 
 
 ## Integration seams still required
 
-This repository does not contain the infrastructure credentials or services to provision separate customer databases. `provisioning_jobs` is a durable queue record only; a trusted server-side worker must claim jobs idempotently, create the tenant environment, apply tenant migrations, invite its first admin, register health checks and backups, then update status. Keep cloud/database credentials out of the Vite application.
+`provisioning_jobs` is a durable queue record only. The current `owner-provisioning` function verifies Management API connectivity and intentionally performs no mutations. A trusted server-side worker must still claim jobs idempotently, create the tenant environment, apply tenant migrations, invite its first admin, register health checks and backups, then update status. Keep cloud/database credentials out of the Vite application.
 
 Tenant telemetry must be aggregated at the tenant boundary and sent through an authenticated server-side ingestion endpoint. Send counts, latency percentiles, sync lag and technical health only; do not send business payloads, names, emails or user-level activity. Behavioral insights belong in each tenant's own app.
 
