@@ -64,6 +64,7 @@ export function OwnerConsole() {
   const [adminEmail, setAdminEmail] = useState('');
   const [provisioningTenantId, setProvisioningTenantId] = useState('');
   const [provisioningMessage, setProvisioningMessage] = useState('');
+  const [provisioningError, setProvisioningError] = useState('');
   const [successNotice, setSuccessNotice] = useState('');
   const [form, setForm] = useState({ name: '', slug: '', plan: 'starter', region: 'africa-east', primary_contact: '', contact_email: '', isolation_level: 'database_per_tenant' });
 
@@ -228,6 +229,7 @@ export function OwnerConsole() {
   const prepareProvisioning = (tenant: Tenant) => {
     setError('');
     setProvisioningMessage('');
+    setProvisioningError('');
     setAdminEmail(tenant.contact_email || '');
     setShowProvision(tenant);
   };
@@ -237,10 +239,10 @@ export function OwnerConsole() {
     if (!ownerSupabase || !showProvision) return;
     const tenant = showProvision;
     const email = adminEmail.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError('Enter a valid first tenant administrator email.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setProvisioningError('Enter a valid first tenant administrator email.'); return; }
 
     setProvisioningTenantId(tenant.id);
-    setError(''); setSuccessNotice('');
+    setError(''); setProvisioningError(''); setSuccessNotice('');
     setProvisioningMessage('Checking the tenant job and Supabase organization…');
     try {
       if (email !== tenant.contact_email) {
@@ -279,7 +281,10 @@ export function OwnerConsole() {
       setProvisioningMessage('Provisioning is still in progress. Close this window and choose Resume when it is ready.');
       await loadData();
     } catch (provisionError) {
-      setError(provisionError instanceof Error ? provisionError.message : 'Tenant provisioning failed. Retry the job to resume safely.');
+      const detail = provisionError instanceof Error ? provisionError.message : 'Tenant provisioning failed unexpectedly.';
+      setProvisioningMessage('');
+      setProvisioningError(`${detail} You can retry; provisioning resumes from its last saved step.`);
+      setError(detail);
       await loadData();
     } finally {
       setProvisioningTenantId('');
@@ -343,7 +348,7 @@ export function OwnerConsole() {
       </div>
 
       {showCreate && <TenantModal form={form} setForm={setForm} onClose={() => setShowCreate(false)} onSubmit={createTenant} busy={busy} />}
-      {showProvision && <ProvisionTenantModal tenant={showProvision} email={adminEmail} setEmail={setAdminEmail} message={provisioningMessage} onClose={() => { if (!provisioningTenantId) setShowProvision(null); }} onSubmit={startProvisioning} busy={provisioningTenantId === showProvision.id} />}
+      {showProvision && <ProvisionTenantModal tenant={showProvision} email={adminEmail} setEmail={setAdminEmail} message={provisioningMessage} error={provisioningError} onClearError={() => setProvisioningError('')} onClose={() => { if (!provisioningTenantId) setShowProvision(null); }} onSubmit={startProvisioning} busy={provisioningTenantId === showProvision.id} />}
     </div>
   );
 }
@@ -540,12 +545,13 @@ function TenantModal({ form, setForm, onClose, onSubmit, busy }: { form: { name:
   </form></div>;
 }
 
-function ProvisionTenantModal({ tenant, email, setEmail, message, onClose, onSubmit, busy }: { tenant: Tenant; email: string; setEmail: (value: string) => void; message: string; onClose: () => void; onSubmit: (event: FormEvent) => void; busy: boolean }) {
+function ProvisionTenantModal({ tenant, email, setEmail, message, error, onClearError, onClose, onSubmit, busy }: { tenant: Tenant; email: string; setEmail: (value: string) => void; message: string; error: string; onClearError: () => void; onClose: () => void; onSubmit: (event: FormEvent) => void; busy: boolean }) {
   const isResume = tenant.status === 'provisioning' || tenant.status === 'attention';
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"><form onSubmit={onSubmit} className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
     <div className="flex items-start justify-between border-b border-slate-100 p-5"><div><p className="text-xs font-semibold uppercase tracking-wider text-blue-700">Tenant onboarding</p><h2 className="mt-1 text-lg font-bold">{isResume ? 'Resume setup' : 'Provision tenant'}</h2><p className="mt-1 text-sm text-slate-500">{tenant.name} ? {tenant.slug}</p></div><button type="button" disabled={busy} onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 disabled:opacity-40" aria-label="Close"><X size={19} /></button></div>
-    <div className="space-y-4 p-5"><label className="block text-sm font-medium">First tenant administrator email<input required type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} disabled={busy} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500 disabled:bg-slate-50" /></label>
+    <div className="space-y-4 p-5"><label className="block text-sm font-medium">First tenant administrator email<input required type="email" autoComplete="email" value={email} onChange={e => { setEmail(e.target.value); if (error) onClearError(); }} disabled={busy} className="mt-1.5 w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-500 disabled:bg-slate-50" /></label>
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">Provisioning creates a new Supabase project in the configured organization. Project limits and billing depend on that organization?s plan.</div>
+      {error && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm leading-5 text-rose-800">{error}</p>}
       {message && <div role="status" className="flex items-start gap-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-800">{busy && <RefreshCw size={15} className="mt-0.5 shrink-0 animate-spin" />}<span>{message}</span></div>}
     </div>
     <div className="flex justify-end gap-2 border-t border-slate-100 p-5"><button type="button" disabled={busy} onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Provisioning?' : 'Cancel'}</button><button disabled={busy} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">{busy ? 'Working?' : <><Database size={16} /> {isResume ? 'Resume provisioning' : 'Provision and invite admin'}</>}</button></div>
