@@ -99,7 +99,7 @@ Deno.serve(async request => {
       if (!userId) {
         const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
           data: { name },
-          redirectTo: `${appBaseUrl}/t/${tenant.slug}`,
+          redirectTo: `${appBaseUrl}/t/${tenant.slug}?set_password=1`,
         });
         if (inviteError || !invited.user) return json({ error: inviteError?.message || 'Could not send the invitation' }, 400);
         userId = invited.user.id;

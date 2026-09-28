@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ToastProvider } from '@/components/ui/Toast';
 import { Layout } from '@/components/Layout';
 import { Login } from '@/pages/Login';
+import { SetPassword } from '@/pages/SetPassword';
 import { Dashboard } from '@/pages/Dashboard';
 import { Products } from '@/pages/Products';
 import { StockMovements } from '@/pages/StockMovements';
@@ -21,6 +22,9 @@ import { invokeTenantOwnerBridge } from '@/lib/tenantOwnerBridge';
 
 function AppContent() {
   const { session, profile, loading, isAdmin } = useAuth();
+  const [passwordSetupPending, setPasswordSetupPending] = useState(
+    () => new URLSearchParams(window.location.search).get('set_password') === '1',
+  );
   const [currentPage, setCurrentPage] = useState(() => window.location.hash.replace(/^#\/?/, '') || 'dashboard');
 
   useEffect(() => {
@@ -43,12 +47,23 @@ function AppContent() {
     setCurrentPage(page);
   };
 
+  const finishPasswordSetup = () => {
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.delete('set_password');
+    window.history.replaceState(null, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+    setPasswordSetupPending(false);
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
       </div>
     );
+  }
+
+  if (passwordSetupPending) {
+    return <SetPassword onContinue={finishPasswordSetup} onReturnToLogin={finishPasswordSetup} />;
   }
 
   if (!session || !profile) {

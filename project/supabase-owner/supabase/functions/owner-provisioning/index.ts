@@ -45,6 +45,11 @@ function projectUrl(ref: string) {
   return `https://${ref}.supabase.co`;
 }
 
+function projectHealthPath(ref: string) {
+  const services = new URLSearchParams({ services: 'auth,db,rest' });
+  return `/projects/${encodeURIComponent(ref)}/health?${services.toString()}`;
+}
+
 function flattenKeys(payload: unknown): Record<string, unknown>[] {
   if (Array.isArray(payload)) return payload.filter(item => !!item && typeof item === 'object') as Record<string, unknown>[];
   if (payload && typeof payload === 'object') {
@@ -364,7 +369,7 @@ Deno.serve(async request => {
       step = 'connecting_shared_database';
       ref = sharedProjectRef;
       tenantUrl = projectUrl(ref);
-      const healthResponse = await managementRequest(managementToken, `/projects/${encodeURIComponent(ref)}/health`);
+      const healthResponse = await managementRequest(managementToken, projectHealthPath(ref));
       if (!healthResponse.ok) return await managementFailure(healthResponse);
       if (!allServicesHealthy(await bodyOf(healthResponse))) {
         await save('connecting_shared_database', 0);
@@ -381,7 +386,7 @@ Deno.serve(async request => {
     if (!tenantUrl) tenantUrl = projectUrl(ref);
 
     if (step === 'waiting_for_project') {
-      const healthResponse = await managementRequest(managementToken, `/projects/${encodeURIComponent(ref)}/health`);
+      const healthResponse = await managementRequest(managementToken, projectHealthPath(ref));
       if (!healthResponse.ok) return await managementFailure(healthResponse);
       if (!allServicesHealthy(await bodyOf(healthResponse))) {
         await save('waiting_for_project', stepIndex);
@@ -478,7 +483,7 @@ Deno.serve(async request => {
       }
       const keys = await getProjectKeys(managementToken, ref);
       if (keys.error) return await managementFailure(new Response(null, { status: keys.error }));
-      const inviteRedirect = `${(Deno.env.get('TENANT_APP_BASE_URL') || productionAppBaseUrl).replace(/\/$/, '')}/t/${slug}`;
+      const inviteRedirect = `${(Deno.env.get('TENANT_APP_BASE_URL') || productionAppBaseUrl).replace(/\/$/, '')}/t/${slug}?set_password=1`;
       const inviteUrl = `${tenantUrl}/auth/v1/invite?redirect_to=${encodeURIComponent(inviteRedirect)}`;
       const inviteResponse = await fetch(inviteUrl, {
         method: 'POST',

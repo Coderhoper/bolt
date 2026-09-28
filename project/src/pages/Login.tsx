@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
+import { isTenantContextActive, supabase } from '@/lib/supabase';
 import { Building2, Lock, Mail, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export function Login() {
@@ -10,6 +11,7 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -18,6 +20,21 @@ export function Login() {
     if (error) showToast(error, 'error');
     else showToast('Welcome back!', 'success');
     setLoading(false);
+  };
+
+  const handlePasswordRecovery = async () => {
+    const address = email.trim().toLowerCase();
+    if (!address) {
+      showToast('Enter your email address first.', 'error');
+      return;
+    }
+    setRecoveryLoading(true);
+    const redirectUrl = new URL(window.location.pathname, window.location.origin);
+    redirectUrl.searchParams.set('set_password', '1');
+    const { error } = await supabase.auth.resetPasswordForEmail(address, { redirectTo: redirectUrl.toString() });
+    if (error) showToast(error.message, 'error');
+    else showToast('If that address has a tenant account, a password setup link is on its way.', 'success');
+    setRecoveryLoading(false);
   };
 
   return (
@@ -53,7 +70,17 @@ export function Login() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="block text-sm font-medium text-slate-700">Password</label>
+                {isTenantContextActive() && <button
+                  type="button"
+                  onClick={handlePasswordRecovery}
+                  disabled={loading || recoveryLoading}
+                  className="text-xs font-medium text-blue-700 hover:text-blue-800 disabled:opacity-50"
+                >
+                  {recoveryLoading ? 'Sending link…' : 'Forgot password?'}
+                </button>}
+              </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input
