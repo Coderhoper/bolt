@@ -44,8 +44,38 @@ Follow [OWNER_CONTROL_PLANE.md](OWNER_CONTROL_PLANE.md) to apply the owner's iso
 
 Products can only be added by selecting a SKU from the imported hardware catalogue. Cost and selling prices, suppliers, stock levels, and reorder levels are inventory-specific and are entered in the app. Product names, brands, units, and catalogue SKUs come from the catalogue and cannot be hand-created or changed in inventory.
 
-## Supplier receiving
+## Supplier receiving and automation
 
-Apply `supabase/migrations/20260929120000_supplier_receiving_workflow.sql` with the other tenant migrations. It creates tenant-scoped purchase orders, inbound shipment notices, a private `receiving-documents` Storage bucket, and the review-to-stock posting procedures. Administrators can create and approve orders, record shipments, upload a supplier invoice or delivery note, map received lines to catalogue products, and post stock from the review screen. Posting also records the existing supplier purchase and credit balance in the same database transaction.
+Apply all tenant migrations in filename order, including `20260929120000_supplier_receiving_workflow.sql` and `20260929150000_supplier_automation_platform.sql`. The workflow includes supplier approval/suspension, product/SKU mapping, PO and ASN transitions, private document storage, duplicate checks, extraction/review records, reconciliation, anomaly flags, scorecards, and an immutable stock-movement hash chain. Receipt posting requires a recorded human review and commits the purchase, stock movements, ASN/PO quantities, and supplier pricing in one database transaction. Credit notes and duplicate documents cannot post stock.
 
-Document line extraction is manual in this release. OCR/LLM providers, WhatsApp and email webhooks, external supplier acknowledgement, and background reconciliation workers from the extended build specification still need separately deployed server-side services and credentials; the browser app does not send supplier documents to an AI provider.
+Deploy the edge functions after applying the migrations:
+
+```sh
+supabase functions deploy process-receiving-document
+supabase functions deploy whatsapp-webhook
+supabase functions deploy email-inbound-webhook
+```
+
+The document processor uses Azure Document Intelligence and can call OpenAI Responses for structured extraction. Set server-side function secrets; do not put these values in Vite or the browser:
+
+| Secret | Required | Purpose |
+| --- | --- | --- |
+| `AZURE_DI_ENDPOINT` | Yes for Azure OCR | Azure Document Intelligence endpoint |
+| `AZURE_DI_KEY` | Yes for Azure OCR | Azure Document Intelligence key |
+| `OPENAI_API_KEY` | Optional | Structured extraction from redacted OCR text; requests set `store: false` |
+| `OPENAI_MODEL` | Optional | Approved model name; defaults to `gpt-4o-mini` |
+| `PADDLE_OCR_URL` | Optional | Self-hosted fallback adapter endpoint |
+| `PADDLE_OCR_API_KEY` | Optional | Bearer token for the Paddle adapter |
+| `META_APP_SECRET` | Yes for WhatsApp | Verifies `X-Hub-Signature-256` |
+| `META_WEBHOOK_VERIFY_TOKEN` | Yes for WhatsApp | Meta webhook GET challenge |
+| `WHATSAPP_ACCESS_TOKEN` | For media download/replies | WhatsApp Cloud API token |
+| `WHATSAPP_GRAPH_VERSION` | For WhatsApp | Graph API version configured for the Meta app |
+| `INBOUND_EMAIL_WEBHOOK_SECRET` | Yes for email | Shared secret checked from `X-Inbound-Email-Secret` |
+
+Set secrets with `supabase secrets set NAME=value`. Supabase supplies `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` to deployed functions. The service role key is only used inside the two signed/secret-protected inbound handlers.
+
+Configure **Automation & controls → Inbound document routing** with a Meta `phone_number_id` or receiving email address, plus each allowed sender. WhatsApp sender numbers are normalized to digits. To receive WhatsApp webhooks, subscribe the Meta app to the `messages` field and use `https://<project-ref>.supabase.co/functions/v1/whatsapp-webhook` as its callback. Incoming media must come from an allowlisted sender; `#help`, `#supplier CODE`, `#asn ASN-NUMBER`, and `#status ASN-NUMBER` are supported. The email function is a generic adapter: the mail provider must POST `to`, `from`, `subject`, `text`, and `attachments[]` entries containing `filename`, `content_type`, and `content_base64` to `/functions/v1/email-inbound-webhook`, with the configured secret header.
+
+The Paddle fallback expects the self-hosted OCR adapter to accept the file bytes with their MIME type and return JSON shaped as `{ "text": "...", "lines": [{ "description": "...", "supplier_sku": null, "quantity": null, "unit": null, "unit_price": null, "confidence": 0.8, "source_page": 1, "source_bbox": null }], "structured": {} }`. Review and post every extracted receipt manually in the tenant app. Daily reconciliation is scheduled at 18:00 in each tenant's configured timezone when `pg_cron` is available; administrators can also run it from **Automation & controls**.
+
+This repository's production stack is a Vite/Supabase shared database with tenant-scoped rows and RLS, so the workflow extends that architecture rather than introducing the separate per-tenant PostgreSQL clusters, NestJS/FastAPI service, Redis/BullMQ/NATS, Vault/KMS, Kubernetes, or OpenTelemetry stack listed in the aspirational specification. The web app supports mobile camera capture, but there is no separate Expo app or offline queue. Email/SMS/push delivery, supplier portal responses, and owner break-glass tooling still require service and owner-plane work outside these tenant workflows. The email webhook is an adapter contract, not a provider-specific mailbox integration.

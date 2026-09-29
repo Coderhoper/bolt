@@ -13,9 +13,9 @@ import { supabase, getActiveTenantId } from '@/lib/supabase';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
 import type { Product, Supplier } from '@/types';
 
-type OrderStatus = 'draft' | 'pending_approval' | 'approved' | 'sent' | 'acknowledged' | 'partially_fulfilled' | 'fulfilled' | 'cancelled' | 'disputed';
-type AsnStatus = 'announced' | 'in_transit' | 'arrived' | 'receiving' | 'partially_received' | 'received' | 'cancelled' | 'disputed';
-type DocumentStatus = 'pending_review' | 'posted' | 'rejected';
+type OrderStatus = 'draft' | 'pending_approval' | 'approved' | 'sent' | 'acknowledged' | 'partially_fulfilled' | 'fulfilled' | 'closed' | 'cancelled' | 'disputed';
+type AsnStatus = 'announced' | 'in_transit' | 'arrived' | 'receiving' | 'partially_received' | 'received' | 'cancelled' | 'disputed' | 'resolved';
+type DocumentStatus = 'uploaded' | 'scanning' | 'scan_failed' | 'extracting' | 'extracted' | 'extraction_failed' | 'matching' | 'matched' | 'partially_matched' | 'unmatched' | 'reviewing' | 'pending_review' | 'reviewed' | 'posted' | 'rejected' | 'archived';
 type Tab = 'overview' | 'orders' | 'shipments' | 'documents';
 
 interface OrderLine {
@@ -76,12 +76,17 @@ interface Shipment {
 interface ReceiptLine {
   id: string;
   line_no: number;
-  product_id: string;
+  product_id: string | null;
   description: string | null;
-  quantity_received: number;
-  unit_price: number;
+  quantity_received: number | null;
+  unit_price: number | null;
   asn_line_id: string | null;
   purchase_order_line_id: string | null;
+  extracted_description?: string | null;
+  confidence?: number | null;
+  match_confidence?: number | null;
+  match_method?: string | null;
+  decision?: string | null;
   product?: Pick<Product, 'name' | 'unit'>;
 }
 
@@ -96,6 +101,10 @@ interface ReceivingDocument {
   file_name: string;
   mime_type: string;
   size_bytes: number;
+  sha256?: string | null;
+  duplicate_of?: string | null;
+  processing_error?: string | null;
+  confidence_overall?: number | null;
   notes: string | null;
   purchase_id: string | null;
   created_at: string;
@@ -114,17 +123,33 @@ interface DraftLine {
 interface ReviewDraftLine extends DraftLine {
   asn_line_id: string;
   purchase_order_line_id: string;
+  extracted_description?: string;
+  confidence?: number | null;
+  review_action?: string;
+  reason_code?: string;
 }
 
 const inputClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10';
 const labelClass = 'mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500';
 
 function orderStatusLabel(status: OrderStatus) {
-  return ({ draft: 'Draft', pending_approval: 'Awaiting approval', approved: 'Approved', sent: 'Sent to supplier', acknowledged: 'Acknowledged', partially_fulfilled: 'Partially received', fulfilled: 'Complete', cancelled: 'Cancelled', disputed: 'Disputed' })[status];
+  return ({ draft: 'Draft', pending_approval: 'Awaiting approval', approved: 'Approved', sent: 'Sent to supplier', acknowledged: 'Acknowledged', partially_fulfilled: 'Partially received', fulfilled: 'Complete', closed: 'Closed', cancelled: 'Cancelled', disputed: 'Disputed' })[status];
 }
 
 function shipmentStatusLabel(status: AsnStatus) {
-  return ({ announced: 'Announced', in_transit: 'In transit', arrived: 'Arrived', receiving: 'Receiving', partially_received: 'Partially received', received: 'Received', cancelled: 'Cancelled', disputed: 'Disputed' })[status];
+  return ({ announced: 'Announced', in_transit: 'In transit', arrived: 'Arrived', receiving: 'Receiving', partially_received: 'Partially received', received: 'Received', cancelled: 'Cancelled', disputed: 'Disputed', resolved: 'Resolved' })[status];
+}
+
+function documentStatusLabel(status: DocumentStatus) {
+  return ({ uploaded: 'Ready to scan', scanning: 'Scanning', scan_failed: 'Scan failed', extracting: 'Extracting', extracted: 'Extracted', extraction_failed: 'Extraction failed', matching: 'Matching', matched: 'Matched', partially_matched: 'Needs review', unmatched: 'Unmatched', reviewing: 'In review', pending_review: 'Needs review', reviewed: 'Reviewed', posted: 'Posted', rejected: 'Rejected', archived: 'Archived' })[status];
+}
+
+function documentStatusTone(status: DocumentStatus): 'slate' | 'blue' | 'amber' | 'green' | 'rose' {
+  if (status === 'posted') return 'green';
+  if (status === 'rejected' || status === 'scan_failed' || status === 'extraction_failed') return 'rose';
+  if (['scanning', 'extracting', 'matching', 'matched', 'reviewed'].includes(status)) return 'blue';
+  if (['uploaded', 'pending_review', 'partially_matched', 'unmatched', 'reviewing'].includes(status)) return 'amber';
+  return 'slate';
 }
 
 function StatusBadge({ children, tone = 'slate' }: { children: string; tone?: 'slate' | 'blue' | 'amber' | 'green' | 'rose' }) {
@@ -139,7 +164,7 @@ function StatusBadge({ children, tone = 'slate' }: { children: string; tone?: 's
 }
 
 function orderTone(status: OrderStatus): 'slate' | 'blue' | 'amber' | 'green' | 'rose' {
-  if (status === 'fulfilled') return 'green';
+  if (status === 'fulfilled' || status === 'closed') return 'green';
   if (status === 'disputed' || status === 'cancelled') return 'rose';
   if (status === 'draft') return 'slate';
   if (status === 'partially_fulfilled' || status === 'pending_approval') return 'amber';
@@ -147,7 +172,7 @@ function orderTone(status: OrderStatus): 'slate' | 'blue' | 'amber' | 'green' | 
 }
 
 function shipmentTone(status: AsnStatus): 'slate' | 'blue' | 'amber' | 'green' | 'rose' {
-  if (status === 'received') return 'green';
+  if (status === 'received' || status === 'resolved') return 'green';
   if (status === 'disputed' || status === 'cancelled') return 'rose';
   if (status === 'announced') return 'slate';
   if (status === 'arrived' || status === 'partially_received' || status === 'receiving') return 'amber';
@@ -214,6 +239,7 @@ export function Receiving() {
   const [documentUrl, setDocumentUrl] = useState('');
   const [reviewSaving, setReviewSaving] = useState(false);
   const [posting, setPosting] = useState(false);
+  const [processingDocumentIds, setProcessingDocumentIds] = useState<Set<string>>(new Set());
 
   const loadData = useCallback(async (quiet = false) => {
     if (quiet) setRefreshing(true); else setLoading(true);
@@ -247,9 +273,9 @@ export function Receiving() {
 
   useEffect(() => { void loadData(); }, [loadData]);
 
-  const pendingDocuments = documents.filter(document => document.status === 'pending_review');
-  const openShipments = shipments.filter(shipment => !['received', 'cancelled'].includes(shipment.status));
-  const ordersInProgress = orders.filter(order => !['fulfilled', 'cancelled'].includes(order.status));
+  const pendingDocuments = documents.filter(document => ['uploaded', 'scan_failed', 'extraction_failed', 'extracted', 'matched', 'partially_matched', 'unmatched', 'pending_review', 'reviewed'].includes(document.status));
+  const openShipments = shipments.filter(shipment => !['received', 'cancelled', 'resolved'].includes(shipment.status));
+  const ordersInProgress = orders.filter(order => !['fulfilled', 'closed', 'cancelled'].includes(order.status));
   const filteredOrders = orders.filter(order => `${order.order_number} ${order.supplier?.name || ''}`.toLowerCase().includes(search.toLowerCase()));
   const filteredShipments = shipments.filter(shipment => `${shipment.asn_number} ${shipment.supplier?.name || ''} ${shipment.purchase_order?.order_number || ''}`.toLowerCase().includes(search.toLowerCase()));
   const filteredDocuments = documents.filter(document => `${document.file_name} ${document.invoice_number || ''} ${document.supplier?.name || ''}`.toLowerCase().includes(search.toLowerCase()));
@@ -306,11 +332,20 @@ export function Receiving() {
   };
 
   const updateOrderStatus = async (order: PurchaseOrder, status: OrderStatus) => {
-    const now = new Date().toISOString();
-    const update = status === 'approved'
-      ? { status, approved_at: now, approved_by: (await supabase.auth.getUser()).data.user?.id || null, updated_at: now }
-      : status === 'sent' ? { status, sent_at: now, updated_at: now } : { status, updated_at: now };
-    const { error } = await supabase.from('supplier_purchase_orders').update(update).eq('id', order.id);
+    const actionByStatus: Partial<Record<OrderStatus, string>> = {
+      pending_approval: 'submit', approved: 'approve', sent: 'send', acknowledged: 'acknowledge',
+      closed: 'close', cancelled: 'cancel', disputed: 'dispute',
+    };
+    const action = status === 'closed' && order.status === 'disputed' ? 'resolve' : actionByStatus[status];
+    if (!action) return;
+    const needsReason = ['cancelled', 'disputed'].includes(status) || (status === 'closed' && order.status === 'disputed');
+    const reason = needsReason ? window.prompt(`Reason to ${order.status === 'disputed' ? 'resolve' : status} ${order.order_number}:`) : null;
+    if (needsReason && !reason?.trim()) return;
+    const { error } = await supabase.rpc('transition_supplier_purchase_order', {
+      p_order_id: order.id,
+      p_action: action,
+      p_reason: reason?.trim() || null,
+    });
     if (error) showToast(error.message, 'error');
     else { showToast(`Order ${order.order_number} ${status === 'sent' ? 'marked as sent' : status === 'approved' ? 'approved' : 'updated'}`, 'success'); await loadData(true); }
   };
@@ -366,12 +401,18 @@ export function Receiving() {
   };
 
   const updateShipmentStatus = async (shipment: Shipment, status: AsnStatus) => {
-    const now = new Date().toISOString();
-    const { error } = await supabase.from('supplier_asns').update({
-      status,
-      actual_arrival_at: status === 'arrived' ? now : shipment.actual_arrival_at,
-      updated_at: now,
-    }).eq('id', shipment.id);
+    const actionByStatus: Partial<Record<AsnStatus, string>> = {
+      in_transit: 'transit', arrived: 'arrive', cancelled: 'cancel', disputed: 'dispute', resolved: 'resolve',
+    };
+    const action = actionByStatus[status];
+    if (!action) return;
+    const reason = ['cancelled', 'disputed', 'resolved'].includes(status) ? window.prompt(`Reason to ${status} ${shipment.asn_number}:`) : null;
+    if (['cancelled', 'disputed', 'resolved'].includes(status) && !reason?.trim()) return;
+    const { error } = await supabase.rpc('transition_supplier_asn', {
+      p_asn_id: shipment.id,
+      p_action: action,
+      p_reason: reason?.trim() || null,
+    });
     if (error) showToast(error.message, 'error');
     else { showToast(`${shipment.asn_number} marked ${shipmentStatusLabel(status).toLowerCase()}`, 'success'); await loadData(true); }
   };
@@ -397,6 +438,10 @@ export function Receiving() {
     if (!tenantId) { showToast('Select a business workspace before uploading documents.', 'error'); return; }
 
     setUploading(true);
+    const fileDigest = await crypto.subtle.digest('SHA-256', await uploadFile.arrayBuffer());
+    const sha256 = Array.from(new Uint8Array(fileDigest), byte => byte.toString(16).padStart(2, '0')).join('');
+    const { data: matches } = await supabase.from('receiving_documents').select('id').eq('sha256', sha256).limit(1);
+    const duplicateOf = matches?.[0]?.id || null;
     const folder = crypto.randomUUID();
     const safeName = uploadFile.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-120) || 'delivery-document';
     const path = `${tenantId}/${folder}/${safeName}`;
@@ -406,27 +451,32 @@ export function Receiving() {
     if (storageError) {
       showToast(storageError.message, 'error'); setUploading(false); return;
     }
-    const { error: insertError } = await supabase.from('receiving_documents').insert({
+    const { data: insertedDocument, error: insertError } = await supabase.from('receiving_documents').insert({
       supplier_id: uploadSupplierId,
       asn_id: uploadAsnId || null,
       document_type: documentType,
       channel: 'web',
-      status: 'pending_review',
+      status: 'uploaded',
       invoice_number: invoiceNumber.trim() || null,
       storage_path: path,
       file_name: uploadFile.name,
       mime_type: uploadFile.type,
       size_bytes: uploadFile.size,
+      sha256,
+      duplicate_of: duplicateOf,
+      uploader_user_agent: navigator.userAgent.slice(0, 500),
       notes: uploadNotes.trim() || null,
-    });
+    }).select('*').single();
     if (insertError) {
       await supabase.storage.from('receiving-documents').remove([path]);
       showToast(insertError.message, 'error');
     } else {
-      showToast('Document uploaded to the review queue', 'success');
+      const insertedDuplicateOf = (insertedDocument as ReceivingDocument | null)?.duplicate_of || null;
+      showToast(insertedDuplicateOf ? 'Duplicate document saved and flagged for review' : 'Document uploaded to the processing queue', insertedDuplicateOf ? 'info' : 'success');
       setUploadModalOpen(false);
       setTab('documents');
       await loadData(true);
+      if (!insertedDuplicateOf && insertedDocument) void processDocument(insertedDocument as ReceivingDocument);
     }
     setUploading(false);
   };
@@ -443,39 +493,62 @@ export function Receiving() {
     if (signed?.signedUrl) setDocumentUrl(signed.signedUrl);
     const savedLines = (lines || []) as ReceiptLine[];
     setReviewLines(savedLines.length ? savedLines.map(line => ({
-      product_id: line.product_id,
-      quantity: String(line.quantity_received),
-      unit_price: String(line.unit_price),
+      product_id: line.product_id || '',
+      quantity: line.quantity_received == null ? '' : String(line.quantity_received),
+      unit_price: line.unit_price == null ? '' : String(line.unit_price),
       asn_line_id: line.asn_line_id || '',
       purchase_order_line_id: line.purchase_order_line_id || '',
+      extracted_description: line.extracted_description || line.description || '',
+      confidence: line.confidence,
+      review_action: 'APPROVE',
+      reason_code: '',
     })) : [{ product_id: '', quantity: '1', unit_price: '', asn_line_id: '', purchase_order_line_id: '' }]);
   };
 
   const updateReviewLine = (index: number, field: keyof ReviewDraftLine, value: string) => {
-    setReviewLines(current => current.map((line, i) => {
-      if (i !== index) return line;
+    setReviewLines(current => current.map((lineDraft, i) => {
+      if (i !== index) return lineDraft;
       if (field === 'product_id') {
         const matching = shipments.find(shipment => shipment.id === reviewDocument?.asn_id)?.lines.filter(asnLine => asnLine.product_id === value) || [];
-        const line = matching.find(candidate => Number(candidate.quantity_received) < Number(candidate.quantity_expected)) || matching[0];
+        const asnLine = matching.find(candidate => Number(candidate.quantity_received) < Number(candidate.quantity_expected)) || matching[0];
         return {
-          ...line,
+          ...lineDraft,
           product_id: value,
-          unit_price: line ? String(line.unit_price) : products.find(product => product.id === value) ? String(products.find(product => product.id === value)!.buying_price) : '',
-          asn_line_id: line?.id || '',
-          purchase_order_line_id: line?.purchase_order_line_id || '',
-          quantity: line ? String(Math.max(0, Number(line.quantity_expected) - Number(line.quantity_received)) || 1) : '1',
+          unit_price: asnLine ? String(asnLine.unit_price) : products.find(product => product.id === value) ? String(products.find(product => product.id === value)!.buying_price) : '',
+          asn_line_id: asnLine?.id || '',
+          purchase_order_line_id: asnLine?.purchase_order_line_id || '',
+          quantity: asnLine ? String(Math.max(0, Number(asnLine.quantity_expected) - Number(asnLine.quantity_received)) || 1) : lineDraft.quantity || '1',
+          review_action: 'CORRECT_PRODUCT',
+          reason_code: '',
         };
       }
-      return { ...line, [field]: value };
+      const reviewAction = field === 'quantity' ? 'CORRECT_QTY'
+        : field === 'unit_price' ? 'CORRECT_PRICE' : lineDraft.review_action;
+      return { ...lineDraft, [field]: value, review_action: reviewAction };
     }));
   };
 
   const reviewShipment = shipments.find(shipment => shipment.id === reviewDocument?.asn_id);
   const reviewTotal = reviewLines.reduce((sum, line) => sum + (Number(line.quantity) || 0) * (Number(line.unit_price) || 0), 0);
 
+  const processDocument = async (document: ReceivingDocument) => {
+    setProcessingDocumentIds(current => new Set(current).add(document.id));
+    try {
+      const { data, error } = await supabase.functions.invoke('process-receiving-document', { body: { document_id: document.id } });
+      if (error) showToast(error.message || 'Document extraction failed', 'error');
+      else if (data?.error) showToast(data.error, 'error');
+      else showToast(`Document processed. ${data?.line_count ?? 0} line(s) found for review.`, 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Document extraction failed', 'error');
+    } finally {
+      setProcessingDocumentIds(current => { const next = new Set(current); next.delete(document.id); return next; });
+      await loadData(true);
+    }
+  };
+
   const saveReview = async () => {
     if (!reviewDocument) return;
-    if (reviewLines.length === 0 || reviewLines.some(line => !line.product_id || Number(line.quantity) <= 0 || line.unit_price === '' || Number(line.unit_price) < 0)) {
+    if (reviewLines.length === 0 || reviewLines.some(line => !line.product_id || Number(line.quantity) <= 0 || line.unit_price === '' || Number(line.unit_price) < 0 || (line.review_action && line.review_action !== 'APPROVE' && !line.reason_code))) {
       showToast('Complete each product, received quantity, and unit cost.', 'error');
       return;
     }
@@ -487,6 +560,9 @@ export function Receiving() {
         quantity_received: Number(line.quantity),
         unit_price: Number(line.unit_price),
         asn_line_id: line.asn_line_id || null,
+        purchase_order_line_id: line.purchase_order_line_id || null,
+        review_action: line.review_action || 'APPROVE',
+        reason_code: line.reason_code || null,
       })),
     });
     if (error) showToast(error.message, 'error');
@@ -496,7 +572,7 @@ export function Receiving() {
 
   const postDocument = async () => {
     if (!reviewDocument) return;
-    if (reviewLines.length === 0 || reviewLines.some(line => !line.product_id || Number(line.quantity) <= 0 || line.unit_price === '' || Number(line.unit_price) < 0)) {
+    if (reviewLines.length === 0 || reviewLines.some(line => !line.product_id || Number(line.quantity) <= 0 || line.unit_price === '' || Number(line.unit_price) < 0 || (line.review_action && line.review_action !== 'APPROVE' && !line.reason_code))) {
       showToast('Complete each product, received quantity, and unit cost before posting.', 'error');
       return;
     }
@@ -508,6 +584,9 @@ export function Receiving() {
         quantity_received: Number(line.quantity),
         unit_price: Number(line.unit_price),
         asn_line_id: line.asn_line_id || null,
+        purchase_order_line_id: line.purchase_order_line_id || null,
+        review_action: line.review_action || 'APPROVE',
+        reason_code: line.reason_code || null,
       })),
     });
     if (reviewError) {
@@ -526,7 +605,9 @@ export function Receiving() {
   };
 
   const rejectDocument = async (document: ReceivingDocument) => {
-    const { error } = await supabase.from('receiving_documents').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', document.id);
+    const reason = window.prompt('Why should this document be rejected?');
+    if (!reason?.trim()) return;
+    const { error } = await supabase.rpc('reject_receiving_document', { p_document_id: document.id, p_reason: reason.trim() });
     if (error) showToast(error.message, 'error');
     else { showToast('Document rejected', 'info'); await loadData(true); }
   };
@@ -578,7 +659,7 @@ export function Receiving() {
               <button onClick={() => void loadData(true)} className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label="Refresh receiving data"><RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} /></button>
             </div>
             <div className="divide-y divide-slate-100">
-              {pendingDocuments.slice(0, 3).map(document => <QueueRow key={document.id} icon={FileText} title={document.file_name} subtitle={`${document.supplier?.name || 'Supplier'} · ${formatDateTime(document.created_at)}`} badge="Review document" tone="rose" onClick={() => void startReview(document)} />)}
+              {pendingDocuments.slice(0, 3).map(document => <QueueRow key={document.id} icon={FileText} title={document.file_name} subtitle={`${document.supplier?.name || 'Supplier'} · ${formatDateTime(document.created_at)}`} badge={['uploaded', 'scan_failed', 'extraction_failed'].includes(document.status) ? 'Process document' : 'Review document'} tone="rose" onClick={() => ['uploaded', 'scan_failed', 'extraction_failed'].includes(document.status) ? void processDocument(document) : void startReview(document)} />)}
               {openShipments.filter(shipment => shipment.status === 'arrived').slice(0, 2).map(shipment => <QueueRow key={shipment.id} icon={Truck} title={`${shipment.asn_number} has arrived`} subtitle={`${shipment.supplier?.name || 'Supplier'} · ${shipment.purchase_order?.order_number || 'No PO linked'}`} badge="Receive items" tone="amber" onClick={() => openUploadForm(shipment)} />)}
               {orders.filter(order => order.status === 'draft').slice(0, 2).map(order => <QueueRow key={order.id} icon={ClipboardCheck} title={`${order.order_number} is a draft`} subtitle={`${order.supplier?.name || 'Supplier'} · ${order.lines.length} products · ${formatCurrency(order.total_amount)}`} badge="Approve order" tone="blue" onClick={() => setTab('orders')} />)}
               {pendingDocuments.length === 0 && openShipments.every(shipment => shipment.status !== 'arrived') && orders.every(order => order.status !== 'draft') && <div className="p-8 text-center"><CheckCircle2 className="mx-auto text-emerald-500" size={28} /><p className="mt-3 text-sm font-semibold text-slate-800">You’re all caught up</p><p className="mt-1 text-sm text-slate-500">New deliveries and documents will show up here.</p></div>}
@@ -607,15 +688,15 @@ export function Receiving() {
         {isAdmin && <button onClick={() => tab === 'orders' ? openOrderForm() : tab === 'shipments' ? openShipmentForm() : openUploadForm()} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"><Plus size={16} />{tab === 'orders' ? 'New purchase order' : tab === 'shipments' ? 'Register shipment' : 'Upload document'}</button>}
       </div>}
 
-      {tab === 'orders' && <OrdersPanel orders={filteredOrders} isAdmin={isAdmin} onApprove={order => void updateOrderStatus(order, 'approved')} onSend={order => void updateOrderStatus(order, 'sent')} onCreateShipment={openShipmentForm} />}
+      {tab === 'orders' && <OrdersPanel orders={filteredOrders} isAdmin={isAdmin} onSubmit={order => void updateOrderStatus(order, 'pending_approval')} onApprove={order => void updateOrderStatus(order, 'approved')} onSend={order => void updateOrderStatus(order, 'sent')} onCreateShipment={openShipmentForm} onAction={(order, status) => void updateOrderStatus(order, status)} />}
       {tab === 'shipments' && <ShipmentsPanel shipments={filteredShipments} isAdmin={isAdmin} onStatus={updateShipmentStatus} onUpload={openUploadForm} />}
-      {tab === 'documents' && <DocumentsPanel documents={filteredDocuments} isAdmin={isAdmin} onReview={startReview} onReject={rejectDocument} />}
+      {tab === 'documents' && <DocumentsPanel documents={filteredDocuments} isAdmin={isAdmin} processingDocumentIds={processingDocumentIds} onProcess={processDocument} onReview={startReview} onReject={rejectDocument} />}
 
       <Modal open={orderModalOpen} onClose={() => setOrderModalOpen(false)} title="Create purchase order" size="xl">
         <div className="space-y-5">
           <p className="rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-800">Create an order from products already in your hardware catalogue. Approval and supplier dispatch are recorded separately.</p>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Supplier"><select className={inputClass} value={orderSupplierId} onChange={event => setOrderSupplierId(event.target.value)}><option value="">Select supplier...</option>{suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></Field>
+            <Field label="Supplier"><select className={inputClass} value={orderSupplierId} onChange={event => setOrderSupplierId(event.target.value)}><option value="">Select supplier...</option>{suppliers.filter(supplier => supplier.status === 'ACTIVE').map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></Field>
             <Field label="Expected delivery"><input className={inputClass} type="date" value={orderDate} onChange={event => setOrderDate(event.target.value)} /></Field>
           </div>
           <div className="overflow-hidden rounded-2xl border border-slate-200">
@@ -656,7 +737,7 @@ export function Receiving() {
             <Field label="Document type"><select className={inputClass} value={documentType} onChange={event => setDocumentType(event.target.value)}><option value="delivery_note">Delivery note</option><option value="invoice">Invoice</option><option value="packing_slip">Packing slip</option><option value="receipt">Receipt</option><option value="credit_note">Credit note</option><option value="unknown">Other / unknown</option></select></Field>
             <Field label="Invoice / reference number"><input className={inputClass} value={invoiceNumber} onChange={event => setInvoiceNumber(event.target.value)} placeholder="Optional" /></Field>
           </div>
-          <label className="block"><span className={labelClass}>Document file</span><span className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-5 py-8 text-center transition ${uploadFile ? 'border-blue-300 bg-blue-50' : 'border-slate-300 bg-slate-50 hover:border-blue-400 hover:bg-blue-50/50'}`}><FileImage className="text-blue-600" size={27} /><span className="mt-3 text-sm font-semibold text-slate-800">{uploadFile?.name || 'Choose a PDF or photo'}</span><span className="mt-1 text-xs text-slate-500">PDF, JPG, PNG or WebP · up to 20 MB</span><input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="sr-only" onChange={event => setUploadFile(event.target.files?.[0] || null)} /></span></label>
+          <label className="block"><span className={labelClass}>Document file</span><span className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-5 py-8 text-center transition ${uploadFile ? 'border-blue-300 bg-blue-50' : 'border-slate-300 bg-slate-50 hover:border-blue-400 hover:bg-blue-50/50'}`}><FileImage className="text-blue-600" size={27} /><span className="mt-3 text-sm font-semibold text-slate-800">{uploadFile?.name || 'Choose a PDF or photo'}</span><span className="mt-1 text-xs text-slate-500">PDF, JPG, PNG or WebP · up to 20 MB</span><input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" capture="environment" className="sr-only" onChange={event => setUploadFile(event.target.files?.[0] || null)} /></span></label>
           <Field label="Notes"><textarea className={inputClass} rows={2} value={uploadNotes} onChange={event => setUploadNotes(event.target.value)} placeholder="Optional context for the reviewer" /></Field>
           <ModalActions onCancel={() => setUploadModalOpen(false)} onSave={handleUpload} saving={uploading} label="Upload to review" icon={<Upload size={15} />} />
         </div>
@@ -670,6 +751,7 @@ export function Receiving() {
               {documentUrl ? reviewDocument.mime_type === 'application/pdf' ? <iframe src={documentUrl} title="Uploaded supplier document" className="h-[420px] w-full bg-white" /> : <div className="flex h-[420px] items-center justify-center p-4"><img src={documentUrl} alt="Uploaded supplier document" className="max-h-full max-w-full rounded-lg object-contain shadow-sm" /></div> : <div className="flex h-48 items-center justify-center text-sm text-slate-500">Loading private preview…</div>}
             </div>
             <div className="grid grid-cols-2 gap-3"><InfoTile label="Supplier" value={reviewDocument.supplier?.name || 'Unknown'} /><InfoTile label="ASN" value={reviewShipment?.asn_number || 'Not linked'} /><InfoTile label="Invoice ref" value={reviewDocument.invoice_number || 'Not provided'} /><InfoTile label="Uploaded" value={formatDateTime(reviewDocument.created_at)} /></div>
+            {reviewDocument.duplicate_of && <div className="flex gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-800"><AlertCircle size={16} className="mt-0.5 shrink-0" /><span>This file matches another document in this workspace. Duplicate receipts are blocked from posting.</span></div>}
             {reviewDocument.notes && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{reviewDocument.notes}</p>}
           </div>
 
@@ -682,17 +764,19 @@ export function Receiving() {
               const matchingAsnLines = reviewShipment?.lines.filter(asnLine => asnLine.product_id === line.product_id) || [];
               return <div key={index} className="rounded-2xl border border-slate-200 p-3 sm:p-4">
                 <div className="mb-3 flex items-center justify-between"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Document line {index + 1}</p><button onClick={() => setReviewLines(current => current.filter((_, i) => i !== index))} disabled={reviewLines.length === 1} className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" aria-label="Remove receipt line"><X size={15} /></button></div>
+                {line.extracted_description && <p className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">Detected: <span className="font-semibold text-slate-800">{line.extracted_description}</span>{line.confidence != null && <span className="ml-2 text-slate-400">{Math.round(line.confidence * 100)}% confidence</span>}</p>}
                 <div className="space-y-3"><Field label="Catalogue product"><select className={inputClass} value={line.product_id} onChange={event => updateReviewLine(index, 'product_id', event.target.value)}><option value="">Select matched product...</option>{products.map(product => <option key={product.id} value={product.id}>{product.name}{product.catalog_sku ? ` · ${product.catalog_sku}` : ''}</option>)}</select></Field>
                   {matchingAsnLines.length > 1 && <Field label="Shipment line"><select className={inputClass} value={line.asn_line_id} onChange={event => { const chosen = matchingAsnLines.find(candidate => candidate.id === event.target.value); setReviewLines(current => current.map((draft, i) => i === index ? { ...draft, asn_line_id: chosen?.id || '', purchase_order_line_id: chosen?.purchase_order_line_id || '' } : draft)); }}><option value="">Select shipment line...</option>{matchingAsnLines.map(asnLine => <option key={asnLine.id} value={asnLine.id}>Expected {asnLine.quantity_expected} {asnLine.unit || ''} · line {asnLine.line_no}</option>)}</select></Field>}
                   <div className="grid grid-cols-2 gap-3"><Field label={`Received quantity${selectedProduct ? ` (${selectedProduct.unit})` : ''}`}><input className={inputClass} type="number" min="0.01" step="0.01" value={line.quantity} onChange={event => updateReviewLine(index, 'quantity', event.target.value)} /></Field><Field label="Unit cost"><input className={inputClass} type="number" min="0" step="0.01" value={line.unit_price} onChange={event => updateReviewLine(index, 'unit_price', event.target.value)} /></Field></div>
+                  {line.review_action && line.review_action !== 'APPROVE' && <Field label="Correction reason"><select className={inputClass} value={line.reason_code || ''} onChange={event => updateReviewLine(index, 'reason_code', event.target.value)}><option value="">Select a reason...</option>{['WRONG_MATCH', 'SHORT_DELIVERY', 'OVER_DELIVERY', 'DAMAGED', 'EXPIRED', 'PRICE_DISCREPANCY', 'QUALITY_ISSUE', 'NOT_ORDERED', 'NOT_RECEIVED', 'SUPPLIER_SUBSTITUTION', 'DOCUMENT_UNCLEAR', 'DUPLICATE', 'OTHER'].map(reason => <option key={reason} value={reason}>{reason.replace(/_/g, ' ').toLowerCase()}</option>)}</select></Field>}
                   <p className="text-right text-xs font-semibold text-slate-500">Line total <span className="ml-1 text-sm text-slate-900">{formatCurrency(Number(line.quantity || 0) * Number(line.unit_price || 0))}</span></p>
                 </div>
               </div>;
             })}</div>
             <button onClick={() => setReviewLines(current => [...current, { product_id: '', quantity: '1', unit_price: '', asn_line_id: '', purchase_order_line_id: '' }])} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold text-blue-700 hover:bg-blue-50"><Plus size={15} /> Add line</button>
             <div className="flex items-center justify-between rounded-xl bg-slate-900 px-4 py-3 text-white"><span className="text-sm text-slate-300">Receipt value · posted on credit</span><span className="font-bold">{formatCurrency(reviewTotal)}</span></div>
-            <div className="grid gap-2 sm:grid-cols-2"><button onClick={() => void saveReview()} disabled={reviewSaving || posting} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{reviewSaving ? <RefreshCw className="animate-spin" size={16} /> : <ShieldCheck size={16} />}{reviewSaving ? 'Saving…' : 'Save review'}</button><button onClick={() => void postDocument()} disabled={posting || reviewSaving || reviewDocument.document_type === 'credit_note' || reviewLines.length === 0 || reviewLines.some(line => !line.product_id)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 hover:bg-emerald-700 disabled:opacity-50">{posting ? <RefreshCw className="animate-spin" size={16} /> : <Check size={16} />}{posting ? 'Posting…' : reviewDocument.document_type === 'credit_note' ? 'Credit note held' : 'Approve & post stock'}</button></div>
-            <p className="text-[11px] leading-5 text-slate-400">Posting creates the supplier purchase, stock movements, and shipment progress in one database transaction. This version requires a person to match lines; OCR extraction is not configured.</p>
+            <div className="grid gap-2 sm:grid-cols-2"><button onClick={() => void saveReview()} disabled={reviewSaving || posting} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{reviewSaving ? <RefreshCw className="animate-spin" size={16} /> : <ShieldCheck size={16} />}{reviewSaving ? 'Saving…' : 'Save review'}</button><button onClick={() => void postDocument()} disabled={posting || reviewSaving || reviewDocument.document_type === 'credit_note' || Boolean(reviewDocument.duplicate_of) || reviewLines.length === 0 || reviewLines.some(line => !line.product_id)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 hover:bg-emerald-700 disabled:opacity-50">{posting ? <RefreshCw className="animate-spin" size={16} /> : <Check size={16} />}{posting ? 'Posting…' : reviewDocument.duplicate_of ? 'Duplicate held' : reviewDocument.document_type === 'credit_note' ? 'Credit note held' : 'Approve & post stock'}</button></div>
+            <p className="text-[11px] leading-5 text-slate-400">Posting records the reviewer decisions, supplier purchase, stock movements, and shipment progress in one database transaction. Corrections require a reason.</p>
           </div>
         </div>}
       </Modal>
@@ -729,17 +813,53 @@ function PanelFrame({ children }: { children: ReactNode }) {
   return <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/50">{children}</div>;
 }
 
-function OrdersPanel({ orders, isAdmin, onApprove, onSend, onCreateShipment }: { orders: PurchaseOrder[]; isAdmin: boolean; onApprove: (order: PurchaseOrder) => void; onSend: (order: PurchaseOrder) => void; onCreateShipment: (order: PurchaseOrder) => void }) {
+function OrdersPanel({ orders, isAdmin, onSubmit, onApprove, onSend, onCreateShipment, onAction }: { orders: PurchaseOrder[]; isAdmin: boolean; onSubmit: (order: PurchaseOrder) => void; onApprove: (order: PurchaseOrder) => void; onSend: (order: PurchaseOrder) => void; onCreateShipment: (order: PurchaseOrder) => void; onAction: (order: PurchaseOrder, status: OrderStatus) => void }) {
   if (orders.length === 0) return <PanelFrame><EmptyState icon={ClipboardCheck} title="No purchase orders found" description="Create a supplier order to plan and track your next inventory delivery." /></PanelFrame>;
-  return <PanelFrame><div className="hidden grid-cols-[1.2fr_1fr_0.75fr_0.7fr_0.7fr] gap-4 bg-slate-50 px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 lg:grid"><span>Purchase order</span><span>Products</span><span>Expected</span><span>Status</span><span className="text-right">Order total</span></div><div className="divide-y divide-slate-100">{orders.map(order => <div key={order.id} className="grid gap-3 p-4 lg:grid-cols-[1.2fr_1fr_0.75fr_0.7fr_0.7fr] lg:items-center lg:gap-4 lg:px-5"><div><p className="text-sm font-bold text-slate-900">{order.order_number}</p><p className="mt-0.5 text-xs text-slate-500">{order.supplier?.name || 'Supplier'} · Created {formatDate(order.created_at)}</p></div><div className="text-xs text-slate-600">{order.lines.slice(0, 2).map(line => line.product?.name || line.description).join(', ')}{order.lines.length > 2 ? ` +${order.lines.length - 2} more` : ''}<span className="ml-1 text-slate-400">({order.lines.length})</span></div><div className="text-xs text-slate-600">{order.expected_delivery ? formatDate(order.expected_delivery) : 'Not scheduled'}</div><div><StatusBadge tone={orderTone(order.status)}>{orderStatusLabel(order.status)}</StatusBadge></div><div className="flex items-center justify-between gap-3 lg:justify-end"><span className="text-sm font-bold text-slate-900">{formatCurrency(order.total_amount)}</span>{isAdmin && <div className="flex gap-1">{order.status === 'draft' && <button onClick={() => onApprove(order)} className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100">Approve</button>}{order.status === 'approved' && <button onClick={() => onSend(order)} className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100">Mark sent</button>}{['approved', 'sent', 'acknowledged', 'partially_fulfilled'].includes(order.status) && <button onClick={() => onCreateShipment(order)} className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-slate-700">ASN</button>}</div>}</div></div>)}</div></PanelFrame>;
+  return <PanelFrame>
+    <div className="hidden grid-cols-[1.2fr_1fr_0.75fr_0.7fr_0.7fr] gap-4 bg-slate-50 px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 lg:grid"><span>Purchase order</span><span>Products</span><span>Expected</span><span>Status</span><span className="text-right">Order total</span></div>
+    <div className="divide-y divide-slate-100">{orders.map(order => <div key={order.id} className="grid gap-3 p-4 lg:grid-cols-[1.2fr_1fr_0.75fr_0.7fr_0.7fr] lg:items-center lg:gap-4 lg:px-5">
+      <div><p className="text-sm font-bold text-slate-900">{order.order_number}</p><p className="mt-0.5 text-xs text-slate-500">{order.supplier?.name || 'Supplier'} · Created {formatDate(order.created_at)}</p></div>
+      <div className="text-xs text-slate-600">{order.lines.slice(0, 2).map(line => line.product?.name || line.description).join(', ')}{order.lines.length > 2 ? ` +${order.lines.length - 2} more` : ''}<span className="ml-1 text-slate-400">({order.lines.length})</span></div>
+      <div className="text-xs text-slate-600">{order.expected_delivery ? formatDate(order.expected_delivery) : 'Not scheduled'}</div>
+      <div><StatusBadge tone={orderTone(order.status)}>{orderStatusLabel(order.status)}</StatusBadge></div>
+      <div className="flex items-center justify-between gap-3 lg:justify-end"><span className="text-sm font-bold text-slate-900">{formatCurrency(order.total_amount)}</span>{isAdmin && <div className="flex gap-1">
+        {order.status === 'draft' && <button onClick={() => onSubmit(order)} className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100">Submit</button>}
+        {order.status === 'pending_approval' && <button onClick={() => onApprove(order)} className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100">Approve</button>}
+        {order.status === 'approved' && <button onClick={() => onSend(order)} className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100">Mark sent</button>}
+        {['approved', 'sent', 'acknowledged', 'partially_fulfilled'].includes(order.status) && <button onClick={() => onCreateShipment(order)} className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-slate-700">ASN</button>}
+        {order.status === 'fulfilled' && <button onClick={() => onAction(order, 'closed')} className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100">Close</button>}
+        {['draft', 'pending_approval', 'approved', 'sent'].includes(order.status) && <button onClick={() => onAction(order, 'cancelled')} className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50">Cancel</button>}
+        {['sent', 'acknowledged', 'partially_fulfilled', 'fulfilled'].includes(order.status) && <button onClick={() => onAction(order, 'disputed')} className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50">Dispute</button>}
+        {order.status === 'disputed' && <button onClick={() => onAction(order, 'closed')} className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100">Resolve</button>}
+      </div>}</div>
+    </div>)}</div>
+  </PanelFrame>;
 }
 
 function ShipmentsPanel({ shipments, isAdmin, onStatus, onUpload }: { shipments: Shipment[]; isAdmin: boolean; onStatus: (shipment: Shipment, status: AsnStatus) => void; onUpload: (shipment: Shipment) => void }) {
   if (shipments.length === 0) return <PanelFrame><EmptyState icon={Truck} title="No inbound shipments found" description="Create an ASN from an approved purchase order to prepare for a delivery." /></PanelFrame>;
-  return <PanelFrame><div className="hidden grid-cols-[1.1fr_1fr_0.8fr_0.7fr_0.7fr] gap-4 bg-slate-50 px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 lg:grid"><span>Shipment</span><span>Linked order</span><span>Expected arrival</span><span>Status</span><span className="text-right">Action</span></div><div className="divide-y divide-slate-100">{shipments.map(shipment => <div key={shipment.id} className="grid gap-3 p-4 lg:grid-cols-[1.1fr_1fr_0.8fr_0.7fr_0.7fr] lg:items-center lg:gap-4 lg:px-5"><div><p className="text-sm font-bold text-slate-900">{shipment.asn_number}</p><p className="mt-0.5 text-xs text-slate-500">{shipment.supplier?.name || 'Supplier'}{shipment.vehicle_reg ? ` · ${shipment.vehicle_reg}` : ''}</p></div><div><p className="text-xs font-semibold text-slate-700">{shipment.purchase_order?.order_number || 'No linked order'}</p><p className="mt-1 text-xs text-slate-500">{shipment.lines.length} shipment lines</p></div><div className="text-xs text-slate-600">{shipment.expected_arrival_date ? formatDate(shipment.expected_arrival_date) : 'Unscheduled'}</div><div><StatusBadge tone={shipmentTone(shipment.status)}>{shipmentStatusLabel(shipment.status)}</StatusBadge></div><div className="flex flex-wrap justify-start gap-1 lg:justify-end">{isAdmin && shipment.status === 'announced' && <button onClick={() => onStatus(shipment, 'in_transit')} className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100">In transit</button>}{isAdmin && ['announced', 'in_transit'].includes(shipment.status) && <button onClick={() => onStatus(shipment, 'arrived')} className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-100">Mark arrived</button>}{isAdmin && ['arrived', 'partially_received', 'receiving'].includes(shipment.status) && <button onClick={() => onUpload(shipment)} className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-slate-700">Receive</button>}</div></div>)}</div></PanelFrame>;
+  return <PanelFrame><div className="hidden grid-cols-[1.1fr_1fr_0.8fr_0.7fr_0.7fr] gap-4 bg-slate-50 px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 lg:grid"><span>Shipment</span><span>Linked order</span><span>Expected arrival</span><span>Status</span><span className="text-right">Action</span></div><div className="divide-y divide-slate-100">{shipments.map(shipment => <div key={shipment.id} className="grid gap-3 p-4 lg:grid-cols-[1.1fr_1fr_0.8fr_0.7fr_0.7fr] lg:items-center lg:gap-4 lg:px-5"><div><p className="text-sm font-bold text-slate-900">{shipment.asn_number}</p><p className="mt-0.5 text-xs text-slate-500">{shipment.supplier?.name || 'Supplier'}{shipment.vehicle_reg ? ` · ${shipment.vehicle_reg}` : ''}</p></div><div><p className="text-xs font-semibold text-slate-700">{shipment.purchase_order?.order_number || 'No linked order'}</p><p className="mt-1 text-xs text-slate-500">{shipment.lines.length} shipment lines</p></div><div className="text-xs text-slate-600">{shipment.expected_arrival_date ? formatDate(shipment.expected_arrival_date) : 'Unscheduled'}</div><div><StatusBadge tone={shipmentTone(shipment.status)}>{shipmentStatusLabel(shipment.status)}</StatusBadge></div><div className="flex flex-wrap justify-start gap-1 lg:justify-end">{isAdmin && shipment.status === 'announced' && <button onClick={() => onStatus(shipment, 'in_transit')} className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100">In transit</button>}{isAdmin && ['announced', 'in_transit'].includes(shipment.status) && <button onClick={() => onStatus(shipment, 'arrived')} className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-100">Mark arrived</button>}{isAdmin && ['arrived', 'partially_received', 'receiving'].includes(shipment.status) && <button onClick={() => onUpload(shipment)} className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-slate-700">Receive</button>}{isAdmin && ['announced', 'in_transit'].includes(shipment.status) && <button onClick={() => onStatus(shipment, 'cancelled')} className="rounded-lg px-2 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50">Cancel</button>}{isAdmin && ['arrived', 'receiving', 'partially_received', 'received'].includes(shipment.status) && <button onClick={() => onStatus(shipment, 'disputed')} className="rounded-lg px-2 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50">Dispute</button>}{isAdmin && shipment.status === 'disputed' && <button onClick={() => onStatus(shipment, 'resolved')} className="rounded-lg bg-emerald-50 px-2 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100">Resolve</button>}</div></div>)}</div></PanelFrame>;
 }
 
-function DocumentsPanel({ documents, isAdmin, onReview, onReject }: { documents: ReceivingDocument[]; isAdmin: boolean; onReview: (document: ReceivingDocument) => void; onReject: (document: ReceivingDocument) => void }) {
+function DocumentsPanel({ documents, isAdmin, processingDocumentIds, onProcess, onReview, onReject }: { documents: ReceivingDocument[]; isAdmin: boolean; processingDocumentIds: Set<string>; onProcess: (document: ReceivingDocument) => void; onReview: (document: ReceivingDocument) => void; onReject: (document: ReceivingDocument) => void }) {
   if (documents.length === 0) return <PanelFrame><EmptyState icon={FileText} title="No documents found" description="Upload a supplier invoice, delivery note, or packing slip to start a receipt review." /></PanelFrame>;
-  return <PanelFrame><div className="hidden grid-cols-[1.3fr_0.9fr_0.65fr_0.65fr_0.8fr] gap-4 bg-slate-50 px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-500"><span>Document</span><span>Supplier / shipment</span><span>Received</span><span>Status</span><span className="text-right">Action</span></div><div className="divide-y divide-slate-100">{documents.map(document => <div key={document.id} className="grid gap-3 p-4 lg:grid-cols-[1.3fr_0.9fr_0.65fr_0.65fr_0.8fr] lg:items-center lg:gap-4 lg:px-5"><div className="flex min-w-0 items-center gap-3"><span className="rounded-xl bg-blue-50 p-2.5 text-blue-700">{document.mime_type === 'application/pdf' ? <FileText size={17} /> : <FileImage size={17} />}</span><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{document.file_name}</p><p className="mt-0.5 truncate text-xs text-slate-500">{document.invoice_number ? `Ref ${document.invoice_number} · ` : ''}{document.document_type.replace('_', ' ')}</p></div></div><div><p className="text-xs font-semibold text-slate-700">{document.supplier?.name || 'Supplier'}</p><p className="mt-1 text-xs text-slate-500">{document.asn?.asn_number || 'No shipment linked'}</p></div><div className="text-xs text-slate-600">{formatDate(document.created_at)}</div><div><StatusBadge tone={document.status === 'posted' ? 'green' : document.status === 'rejected' ? 'rose' : 'amber'}>{document.status === 'pending_review' ? 'Needs review' : document.status === 'posted' ? 'Posted' : 'Rejected'}</StatusBadge></div><div className="flex items-center justify-between gap-2 lg:justify-end">{document.status === 'posted' ? <span className="text-xs text-slate-500">Stock updated</span> : document.status === 'rejected' ? <span className="text-xs text-slate-500">No stock posted</span> : isAdmin && <><button onClick={() => onReview(document)} className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100">Review</button><button onClick={() => onReject(document)} className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600" title="Reject document"><X size={15} /></button></>}</div></div>)}</div></PanelFrame>;
+  return <PanelFrame>
+    <div className="hidden grid-cols-[1.3fr_0.9fr_0.65fr_0.65fr_0.8fr] gap-4 bg-slate-50 px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-500"><span>Document</span><span>Supplier / shipment</span><span>Received</span><span>Status</span><span className="text-right">Action</span></div>
+    <div className="divide-y divide-slate-100">{documents.map(document => {
+      const canProcess = ['uploaded', 'scan_failed', 'extraction_failed'].includes(document.status);
+      const canReview = ['uploaded', 'scan_failed', 'extraction_failed', 'extracted', 'matched', 'partially_matched', 'unmatched', 'pending_review', 'reviewed'].includes(document.status) || Boolean(document.duplicate_of);
+      const processing = processingDocumentIds.has(document.id) || ['scanning', 'extracting', 'matching'].includes(document.status);
+      return <div key={document.id} className="grid gap-3 p-4 lg:grid-cols-[1.3fr_0.9fr_0.65fr_0.65fr_0.8fr] lg:items-center lg:gap-4 lg:px-5">
+        <div className="flex min-w-0 items-center gap-3"><span className="rounded-xl bg-blue-50 p-2.5 text-blue-700">{document.mime_type === 'application/pdf' ? <FileText size={17} /> : <FileImage size={17} />}</span><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-900">{document.file_name}</p><p className="mt-0.5 truncate text-xs text-slate-500">{document.invoice_number ? `Ref ${document.invoice_number} · ` : ''}{document.document_type.replace('_', ' ')}{document.duplicate_of ? ' · duplicate' : ''}</p>{document.processing_error && <p className="mt-1 truncate text-xs text-rose-600" title={document.processing_error}>{document.processing_error}</p>}</div></div>
+        <div><p className="text-xs font-semibold text-slate-700">{document.supplier?.name || 'Supplier'}</p><p className="mt-1 text-xs text-slate-500">{document.asn?.asn_number || 'No shipment linked'}</p></div>
+        <div className="text-xs text-slate-600">{formatDate(document.created_at)}</div>
+        <div><StatusBadge tone={documentStatusTone(document.status)}>{documentStatusLabel(document.status)}</StatusBadge>{document.confidence_overall != null && <p className="mt-1 text-[11px] text-slate-500">Confidence {Math.round(document.confidence_overall * 100)}%</p>}</div>
+        <div className="flex items-center justify-between gap-2 lg:justify-end">{document.status === 'posted' ? <span className="text-xs text-slate-500">Stock updated</span> : document.status === 'rejected' || document.status === 'archived' ? <span className="text-xs text-slate-500">No stock posted</span> : isAdmin && <>
+          {processing ? <span className="inline-flex items-center gap-1.5 text-xs text-blue-700"><RefreshCw className="animate-spin" size={13} />Processing</span> : canProcess && <button onClick={() => onProcess(document)} className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100">{document.status.endsWith('failed') ? 'Retry scan' : 'Extract'}</button>}
+          {canReview && <button onClick={() => onReview(document)} className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-slate-700">{document.status === 'reviewed' ? 'Post receipt' : 'Review'}</button>}
+          {document.status !== 'reviewed' && <button onClick={() => onReject(document)} className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600" title="Reject document"><X size={15} /></button>}
+        </>}</div>
+      </div>;
+    })}</div>
+  </PanelFrame>;
 }

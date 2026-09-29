@@ -35,6 +35,18 @@ export interface Supplier {
   email: string | null;
   address: string | null;
   credit_balance: number;
+  supplier_code?: string | null;
+  legal_name?: string | null;
+  trading_name?: string | null;
+  tax_id?: string | null;
+  registration_no?: string | null;
+  tier?: 'TIER_1' | 'TIER_2' | 'TIER_3';
+  status?: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'BLACKLISTED' | 'ARCHIVED';
+  risk_score?: number;
+  payment_terms?: string | null;
+  currency?: string;
+  suspended_reason?: string | null;
+  blacklisted_reason?: string | null;
   created_at: string;
   updated_at: string;
 }

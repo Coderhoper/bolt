@@ -1,0 +1,8 @@
+[functions.process-receiving-document]
+verify_jwt = true
+
+[functions.whatsapp-webhook]
+verify_jwt = false
+
+[functions.email-inbound-webhook]
+verify_jwt = false
