@@ -118,7 +118,7 @@ export function Purchases() {
   };
 
   if (loading) {
-    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
+    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-500" /></div>;
   }
 
   return (
@@ -127,53 +127,53 @@ export function Purchases() {
         title="Purchases"
         subtitle={`${purchases.length} purchases recorded`}
         actions={isAdmin && (
-          <button onClick={openAdd} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+          <button onClick={openAdd} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 transition-colors">
             <Plus size={18} /> New Purchase
           </button>
         )}
       />
 
       {purchases.length === 0 ? (
-        <div className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/60">
+        <div className="rounded-md bg-paper shadow-xs border border-ink-100">
           <EmptyState icon={Receipt} title="No purchases recorded" description="Record your first purchase to start tracking inventory inflow." action={isAdmin && (
-            <button onClick={openAdd} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+            <button onClick={openAdd} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700">
               <Plus size={18} /> New Purchase
             </button>
           )} />
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/60">
+        <div className="overflow-hidden rounded-md bg-paper shadow-xs border border-ink-100">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-ink-50 border-b border-ink-200">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Supplier</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Invoice #</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Amount</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">Payment</th>
-                  {isAdmin && <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Actions</th>}
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Supplier</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Invoice #</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Amount</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-ink-600 uppercase tracking-wide">Payment</th>
+                  {isAdmin && <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Actions</th>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-ink-100">
                 {purchases.map(p => (
-                  <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 text-sm text-slate-600">{formatDate(p.purchase_date)}</td>
-                    <td className="px-4 py-3 text-sm text-slate-900">{p.supplier?.name || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{p.invoice_number || '—'}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-slate-900 text-right">{formatCurrency(p.total_amount)}</td>
+                  <tr key={p.id} className="hover:bg-ink-50">
+                    <td className="px-4 py-3 text-sm text-ink-600" data-numeric>{formatDate(p.purchase_date)}</td>
+                    <td className="px-4 py-3 text-sm text-ink-900">{p.supplier?.name || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-ink-600">{p.invoice_number || '—'}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-ink-900 text-right" data-numeric>{formatCurrency(p.total_amount)}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        p.payment_status === 'paid' ? 'bg-emerald-100 text-emerald-700' :
-                        p.payment_status === 'partial' ? 'bg-amber-100 text-amber-700' :
-                        'bg-rose-100 text-rose-700'
-                      }`}>
+                        p.payment_status === 'paid' ? 'bg-accent-100 text-accent-700' :
+                        p.payment_status === 'partial' ? 'bg-warning/10 text-warning' :
+                        'bg-danger/10 text-danger'
+                      }`} data-numeric>
                         {p.payment_status === 'paid' ? 'Paid' : p.payment_status === 'partial' ? `Partial (${formatCurrency(p.amount_paid)})` : 'Credit'}
                       </span>
                     </td>
                     {isAdmin && (
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => viewPurchaseDetails(p)} className="rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600">
+                        <button onClick={() => viewPurchaseDetails(p)} className="rounded-sm p-1.5 text-ink-400 hover:bg-accent-50 hover:text-accent-500">
                           <Eye size={16} />
                         </button>
                       </td>
@@ -190,52 +190,52 @@ export function Purchases() {
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Supplier</label>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Supplier</label>
               <select
                 value={supplierId}
                 onChange={e => setSupplierId(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
               >
                 <option value="">None</option>
                 {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Invoice Number</label>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Invoice Number</label>
               <input
                 type="text"
                 value={invoiceNumber}
                 onChange={e => setInvoiceNumber(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
                 placeholder="Optional"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Purchase Date</label>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Purchase Date</label>
               <input
                 type="date"
                 value={purchaseDate}
                 onChange={e => setPurchaseDate(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500 font-mono tabular-nums"
               />
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
-              <p className="text-sm font-semibold text-slate-900">Purchase Items</p>
-              <button onClick={addItem} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700">
+          <div className="rounded-md border border-ink-200">
+            <div className="flex items-center justify-between border-b border-ink-200 px-4 py-2.5">
+              <p className="text-sm font-semibold text-ink-900">Purchase Items</p>
+              <button onClick={addItem} className="flex items-center gap-1 text-sm text-accent-500 hover:text-accent-700">
                 <Plus size={16} /> Add Item
               </button>
             </div>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-ink-100">
               {items.map((item, index) => (
                 <div key={index} className="flex items-center gap-3 px-4 py-3">
                   <div className="flex-1">
                     <select
                       value={item.product_id}
                       onChange={e => updateItem(index, 'product_id', e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-blue-500 outline-none"
+                      className="w-full rounded-sm border px-3 py-1.5 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
                     >
                       <option value="">Select product...</option>
                       {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -248,7 +248,7 @@ export function Purchases() {
                       min="1"
                       value={item.quantity}
                       onChange={e => updateItem(index, 'quantity', e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-blue-500 outline-none"
+                      className="w-full rounded-sm border px-2 py-1.5 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500 font-mono tabular-nums"
                       placeholder="Qty"
                     />
                   </div>
@@ -259,35 +259,35 @@ export function Purchases() {
                       min="0"
                       value={item.buying_price}
                       onChange={e => updateItem(index, 'buying_price', e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-blue-500 outline-none"
+                      className="w-full rounded-sm border px-2 py-1.5 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500 font-mono tabular-nums"
                       placeholder="Buy Price"
                     />
                   </div>
-                  <div className="w-24 text-right text-sm font-medium text-slate-900">
+                  <div className="w-24 text-right text-sm font-medium text-ink-900" data-numeric>
                     {formatCurrency((parseInt(item.quantity) || 0) * (parseInt(item.buying_price) || 0))}
                   </div>
-                  <button onClick={() => removeItem(index)} className="rounded-lg p-1 text-slate-400 hover:bg-red-50 hover:text-red-600">
+                  <button onClick={() => removeItem(index)} className="rounded-sm p-1 text-ink-400 hover:bg-danger/10 hover:text-danger">
                     <X size={16} />
                   </button>
                 </div>
               ))}
               {items.length === 0 && (
-                <div className="px-4 py-8 text-center text-sm text-slate-400">No items added. Click "Add Item" to start.</div>
+                <div className="px-4 py-8 text-center text-sm text-ink-400">No items added. Click "Add Item" to start.</div>
               )}
             </div>
-            <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 bg-slate-50">
-              <span className="text-sm font-semibold text-slate-900">Total</span>
-              <span className="text-lg font-bold text-blue-600">{formatCurrency(calculateTotal())}</span>
+            <div className="flex items-center justify-between border-t border-ink-200 px-4 py-3 bg-ink-50">
+              <span className="text-sm font-semibold text-ink-900">Total</span>
+              <span className="text-lg font-bold text-accent-500" data-numeric>{formatCurrency(calculateTotal())}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Payment Status</label>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Payment Status</label>
               <select
                 value={paymentStatus}
                 onChange={e => setPaymentStatus(e.target.value as 'paid' | 'partial' | 'credit')}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
               >
                 <option value="paid">Paid in Full</option>
                 <option value="partial">Partial Payment</option>
@@ -296,14 +296,14 @@ export function Purchases() {
             </div>
             {paymentStatus === 'partial' && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Amount Paid</label>
+                <label className="block text-sm font-medium text-ink-700 mb-1">Amount Paid</label>
                 <input
                   type="number"
                   step="1"
                   min="0"
                   value={amountPaid}
                   onChange={e => setAmountPaid(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                  className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500 font-mono tabular-nums"
                   placeholder="0"
                 />
               </div>
@@ -311,7 +311,7 @@ export function Purchases() {
           </div>
 
           {paymentStatus !== 'paid' && supplierId && (
-            <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            <div className="rounded-lg bg-warning/10 px-3 py-2 text-sm text-warning" data-numeric>
               {paymentStatus === 'credit'
                 ? `The full amount (${formatCurrency(calculateTotal())}) will be added to this supplier's credit balance.`
                 : `The remaining balance (${formatCurrency(calculateTotal() - (parseInt(amountPaid) || 0))}) will be added to this supplier's credit balance.`}
@@ -319,18 +319,18 @@ export function Purchases() {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Note (optional)</label>
+            <label className="block text-sm font-medium text-ink-700 mb-1">Note (optional)</label>
             <textarea
               value={note}
               onChange={e => setNote(e.target.value)}
               rows={2}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+              className="w-full rounded-sm border px-3 py-2 text-sm outline-none border-ink-200 bg-paper focus:border-accent-500"
             />
           </div>
 
           <div className="flex justify-end gap-3">
-            <button onClick={() => setModalOpen(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
-            <button onClick={handleSave} disabled={saving || items.length === 0} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+            <button onClick={() => setModalOpen(false)} className="rounded-sm px-4 py-2 text-sm font-medium text-ink-600 hover:bg-ink-100">Cancel</button>
+            <button onClick={handleSave} disabled={saving || items.length === 0} className="rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 disabled:opacity-50">
               {saving ? 'Saving...' : 'Record Purchase'}
             </button>
           </div>
@@ -341,54 +341,54 @@ export function Purchases() {
         {viewPurchase && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-lg bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Date</p>
-                <p className="text-sm font-medium text-slate-900">{formatDate(viewPurchase.purchase_date)}</p>
+              <div className="rounded-lg bg-ink-50 p-3">
+                <p className="text-xs text-ink-500">Date</p>
+                <p className="text-sm font-medium text-ink-900" data-numeric>{formatDate(viewPurchase.purchase_date)}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Supplier</p>
-                <p className="text-sm font-medium text-slate-900">{viewPurchase.supplier?.name || '—'}</p>
+              <div className="rounded-lg bg-ink-50 p-3">
+                <p className="text-xs text-ink-500">Supplier</p>
+                <p className="text-sm font-medium text-ink-900">{viewPurchase.supplier?.name || '—'}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Invoice #</p>
-                <p className="text-sm font-medium text-slate-900">{viewPurchase.invoice_number || '—'}</p>
+              <div className="rounded-lg bg-ink-50 p-3">
+                <p className="text-xs text-ink-500">Invoice #</p>
+                <p className="text-sm font-medium text-ink-900">{viewPurchase.invoice_number || '—'}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Payment</p>
-                <p className="text-sm font-medium text-slate-900 capitalize">
+              <div className="rounded-lg bg-ink-50 p-3">
+                <p className="text-xs text-ink-500">Payment</p>
+                <p className="text-sm font-medium text-ink-900 capitalize">
                   {viewPurchase.payment_status}
                   {viewPurchase.payment_status === 'partial' && ` (${formatCurrency(viewPurchase.amount_paid)} paid)`}
                 </p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Note</p>
-                <p className="text-sm font-medium text-slate-900">{viewPurchase.note || '—'}</p>
+              <div className="rounded-lg bg-ink-50 p-3">
+                <p className="text-xs text-ink-500">Note</p>
+                <p className="text-sm font-medium text-ink-900">{viewPurchase.note || '—'}</p>
               </div>
             </div>
-            <div className="overflow-hidden rounded-xl border border-slate-200">
+            <div className="overflow-hidden rounded-md border border-ink-200">
               <table className="w-full">
-                <thead className="bg-slate-50">
+                <thead className="bg-ink-50">
                   <tr>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Product</th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Qty</th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Buy Price</th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Total</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Product</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Qty</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Buy Price</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-ink-100">
                   {viewItems.map(item => (
                     <tr key={item.id}>
-                      <td className="px-3 py-2 text-sm text-slate-900">{item.product?.name || '—'}</td>
-                      <td className="px-3 py-2 text-sm text-slate-600 text-right">{item.quantity}</td>
-                      <td className="px-3 py-2 text-sm text-slate-600 text-right">{formatCurrency(item.buying_price)}</td>
-                      <td className="px-3 py-2 text-sm font-medium text-slate-900 text-right">{formatCurrency(item.total)}</td>
+                      <td className="px-3 py-2 text-sm text-ink-900">{item.product?.name || '—'}</td>
+                      <td className="px-3 py-2 text-sm text-ink-600 text-right" data-numeric>{item.quantity}</td>
+                      <td className="px-3 py-2 text-sm text-ink-600 text-right" data-numeric>{formatCurrency(item.buying_price)}</td>
+                      <td className="px-3 py-2 text-sm font-medium text-ink-900 text-right" data-numeric>{formatCurrency(item.total)}</td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="bg-slate-50">
+                <tfoot className="bg-ink-50">
                   <tr>
-                    <td colSpan={3} className="px-3 py-2 text-sm font-semibold text-slate-900 text-right">Total</td>
-                    <td className="px-3 py-2 text-sm font-bold text-slate-900 text-right">{formatCurrency(viewPurchase.total_amount)}</td>
+                    <td colSpan={3} className="px-3 py-2 text-sm font-semibold text-ink-900 text-right">Total</td>
+                    <td className="px-3 py-2 text-sm font-bold text-ink-900 text-right" data-numeric>{formatCurrency(viewPurchase.total_amount)}</td>
                   </tr>
                 </tfoot>
               </table>

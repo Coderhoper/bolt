@@ -109,11 +109,11 @@ export function Settings() {
   };
 
   if (loading) {
-    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
+    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-500" /></div>;
   }
 
   if (!settings) {
-    return <div className="rounded-2xl bg-white p-6 shadow-sm"><EmptyState icon={SettingsIcon} title="Settings not configured" /></div>;
+    return <div className="rounded-md bg-paper p-6 shadow-xs border border-ink-100"><EmptyState icon={SettingsIcon} title="Settings not configured" /></div>;
   }
 
   const ownerCount = profiles.filter(p => p.role === 'owner').length;
@@ -122,7 +122,7 @@ export function Settings() {
     <div>
       <PageHeader title="Settings" subtitle="Manage business information, users, and email settings" />
 
-      <div className="mb-6 flex gap-1 rounded-xl border border-slate-200 bg-white p-1 w-fit">
+      <div className="mb-6 flex gap-1 rounded-md border border-ink-100 bg-paper p-1 w-fit">
         {[
           { key: 'business' as const, label: 'Business Info', icon: Building2 },
           { key: 'users' as const, label: 'Users', icon: Users },
@@ -133,8 +133,8 @@ export function Settings() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                activeTab === tab.key ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+              className={`flex items-center gap-2 rounded-sm px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === tab.key ? 'bg-accent-500 text-white' : 'text-ink-600 hover:bg-ink-100'
               }`}
             >
               <Icon size={16} />
@@ -145,58 +145,58 @@ export function Settings() {
       </div>
 
       {activeTab === 'business' && (
-        <div className="max-w-2xl rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60">
+        <div className="max-w-2xl rounded-md bg-paper p-6 shadow-xs border border-ink-100">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Business Name</label>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Business Name</label>
               <input
                 type="text"
                 value={settings.business_name}
                 onChange={e => setSettings({ ...settings, business_name: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Address</label>
               <input
                 type="text"
                 value={settings.business_address || ''}
                 onChange={e => setSettings({ ...settings, business_address: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+                <label className="block text-sm font-medium text-ink-700 mb-1">Phone</label>
                 <input
                   type="text"
                   value={settings.business_phone || ''}
                   onChange={e => setSettings({ ...settings, business_phone: e.target.value })}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                  className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-ink-700 mb-1">Email</label>
                 <input
                   type="email"
                   value={settings.business_email || ''}
                   onChange={e => setSettings({ ...settings, business_email: e.target.value })}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                  className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Currency Symbol</label>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Currency Symbol</label>
               <input
                 type="text"
                 value={settings.currency}
                 onChange={e => setSettings({ ...settings, currency: e.target.value })}
-                className="w-32 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                className="w-32 rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
               />
             </div>
           </div>
           <div className="mt-6 flex justify-end">
-            <button onClick={handleSaveSettings} disabled={saving} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+            <button onClick={handleSaveSettings} disabled={saving} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 disabled:opacity-50">
               <Save size={16} /> {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
@@ -207,40 +207,40 @@ export function Settings() {
         <div className="max-w-3xl">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Shield size={18} className="text-blue-600" />
-              <p className="text-sm text-slate-600">{ownerCount}/3 owners · {profiles.filter(p => p.role === 'admin').length} admin(s)</p>
+              <Shield size={18} className="text-accent-500" />
+              <p className="text-sm text-ink-600" data-numeric>{ownerCount}/3 owners · {profiles.filter(p => p.role === 'admin').length} admin(s)</p>
             </div>
-            <button onClick={() => setShowAddUser(true)} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+            <button onClick={() => setShowAddUser(true)} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700">
               <UserPlus size={16} /> Add User
             </button>
           </div>
 
-          <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/60">
+          <div className="overflow-hidden rounded-md bg-paper shadow-xs border border-ink-100">
             <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-ink-50 border-b border-ink-200">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Email</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Role</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Email</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Role</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-ink-600 uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-ink-100">
                 {profiles.map(p => (
-                  <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 text-sm font-medium text-slate-900">{p.name}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{p.email}</td>
+                  <tr key={p.id} className="hover:bg-ink-50">
+                    <td className="px-4 py-3 text-sm font-medium text-ink-900">{p.name}</td>
+                    <td className="px-4 py-3 text-sm text-ink-600">{p.email}</td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        p.role === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
+                        p.role === 'admin' ? 'bg-accent-100 text-accent-700' : 'bg-accent-100 text-accent-700'
                       }`}>
                         {p.role}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        p.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                        p.status === 'active' ? 'bg-accent-100 text-accent-700' : 'bg-ink-100 text-ink-500'
                       }`}>
                         {p.status}
                       </span>
@@ -248,7 +248,7 @@ export function Settings() {
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => toggleUserStatus(p)}
-                        className="rounded-lg px-3 py-1 text-xs text-slate-600 hover:bg-slate-100"
+                        className="rounded-sm px-3 py-1 text-xs text-ink-600 hover:bg-ink-100"
                       >
                         {p.status === 'active' ? 'Deactivate' : 'Activate'}
                       </button>
@@ -261,64 +261,64 @@ export function Settings() {
 
           {showAddUser && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowAddUser(false)} />
-              <div className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl">
-                <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-                  <h2 className="text-lg font-semibold text-slate-900">Add New User</h2>
-                  <button onClick={() => setShowAddUser(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
+              <div className="absolute inset-0 bg-ink-900/60 backdrop-blur-sm" onClick={() => setShowAddUser(false)} />
+              <div className="relative w-full max-w-md rounded-md bg-paper shadow-xs border border-ink-100">
+                <div className="flex items-center justify-between border-b border-ink-200 px-6 py-4">
+                  <h2 className="text-lg font-semibold text-ink-900 font-display">Add New User</h2>
+                  <button onClick={() => setShowAddUser(false)} className="rounded-sm p-1.5 text-ink-400 hover:bg-ink-100">
                     <X size={20} />
                   </button>
                 </div>
                 <div className="px-6 py-5 space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+                    <label className="block text-sm font-medium text-ink-700 mb-1">Full Name</label>
                     <input
                       type="text"
                       value={newUser.name}
                       onChange={e => setNewUser({ ...newUser, name: e.target.value })}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                      className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
                       placeholder="John Doe"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                    <label className="block text-sm font-medium text-ink-700 mb-1">Email</label>
                     <input
                       type="email"
                       value={newUser.email}
                       onChange={e => setNewUser({ ...newUser, email: e.target.value })}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                      className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
                       placeholder="user@business.com"
                     />
                   </div>
                   {!tenantMode && <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+                    <label className="block text-sm font-medium text-ink-700 mb-1">Password</label>
                     <input
                       type="password"
                       value={newUser.password}
                       onChange={e => setNewUser({ ...newUser, password: e.target.value })}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                      className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
                       placeholder="At least 8 characters"
                     />
                   </div>}
-                  {tenantMode && <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800">We’ll email an invitation. The new member will set their own password. Their access is limited to this business.</p>}
+                  {tenantMode && <p className="rounded-lg bg-accent-50 p-3 text-sm text-accent-900">We’ll email an invitation. The new member will set their own password. Their access is limited to this business.</p>}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+                    <label className="block text-sm font-medium text-ink-700 mb-1">Role</label>
                     <select
                       value={newUser.role}
                       onChange={e => setNewUser({ ...newUser, role: e.target.value })}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                      className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
                     >
                       <option value="owner">{tenantMode ? 'Staff (Standard access)' : 'Owner (Read-only)'}</option>
                       <option value="admin">Administrator (Full Access)</option>
                     </select>
                     {!tenantMode && newUser.role === 'owner' && ownerCount >= 3 && (
-                      <p className="mt-1 text-xs text-rose-600">Maximum 3 owners already reached</p>
+                      <p className="mt-1 text-xs text-danger">Maximum 3 owners already reached</p>
                     )}
                   </div>
                 </div>
-                <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100">
-                  <button onClick={() => setShowAddUser(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
-                  <button onClick={handleAddUser} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">{tenantMode ? 'Send invite' : 'Create User'}</button>
+                <div className="flex justify-end gap-3 px-6 py-4 border-t border-ink-100">
+                  <button onClick={() => setShowAddUser(false)} className="rounded-sm px-4 py-2 text-sm font-medium text-ink-600 hover:bg-ink-100">Cancel</button>
+                  <button onClick={handleAddUser} className="rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700">{tenantMode ? 'Send invite' : 'Create User'}</button>
                 </div>
               </div>
             </div>
@@ -327,60 +327,60 @@ export function Settings() {
       )}
 
       {activeTab === 'email' && (
-        <div className="max-w-2xl rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60">
+        <div className="max-w-2xl rounded-md bg-paper p-6 shadow-xs border border-ink-100">
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 mb-3">Report Email Recipients</h3>
-              <p className="text-sm text-slate-500 mb-3">These email addresses will receive automated weekly and monthly business reports.</p>
+              <h3 className="text-sm font-semibold text-ink-900 mb-3">Report Email Recipients</h3>
+              <p className="text-sm text-ink-500 mb-3">These email addresses will receive automated weekly and monthly business reports.</p>
               <div className="flex gap-2 mb-3">
                 <input
                   type="email"
                   value={newRecipient}
                   onChange={e => setNewRecipient(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addRecipient(); } }}
-                  className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                  className="flex-1 rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
                   placeholder="owner@business.com"
                 />
-                <button onClick={addRecipient} className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                <button onClick={addRecipient} className="flex items-center gap-1 rounded-sm bg-accent-500 px-3 py-2 text-sm font-medium text-white hover:bg-accent-700">
                   <Plus size={16} /> Add
                 </button>
               </div>
               <div className="space-y-2">
                 {settings.email_recipients.length > 0 ? (
                   settings.email_recipients.map(email => (
-                    <div key={email} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-                      <span className="text-sm text-slate-700">{email}</span>
-                      <button onClick={() => removeRecipient(email)} className="rounded-lg p-1 text-slate-400 hover:bg-red-50 hover:text-red-600">
+                    <div key={email} className="flex items-center justify-between rounded-lg bg-ink-50 px-3 py-2">
+                      <span className="text-sm text-ink-700">{email}</span>
+                      <button onClick={() => removeRecipient(email)} className="rounded-sm p-1 text-ink-400 hover:bg-danger/10 hover:text-danger">
                         <Trash2 size={14} />
                       </button>
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-slate-400 py-4 text-center">No recipients added yet</p>
+                  <p className="text-sm text-ink-400 py-4 text-center">No recipients added yet</p>
                 )}
               </div>
             </div>
 
-            <div className="border-t border-slate-100 pt-4">
+            <div className="border-t border-ink-100 pt-4">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={settings.weekly_report_enabled}
                   onChange={e => setSettings({ ...settings, weekly_report_enabled: e.target.checked })}
-                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  className="h-4 w-4 rounded border-ink-300 text-accent-500 focus:ring-accent-500"
                 />
                 <div>
-                  <p className="text-sm font-medium text-slate-900">Enable Weekly Reports</p>
-                  <p className="text-xs text-slate-500">Automatically send reports every week</p>
+                  <p className="text-sm font-medium text-ink-900">Enable Weekly Reports</p>
+                  <p className="text-xs text-ink-500">Automatically send reports every week</p>
                 </div>
               </label>
               {settings.weekly_report_enabled && (
                 <div className="mt-3 ml-7">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Send Day</label>
+                  <label className="block text-sm font-medium text-ink-700 mb-1">Send Day</label>
                   <select
                     value={settings.weekly_report_day}
                     onChange={e => setSettings({ ...settings, weekly_report_day: parseInt(e.target.value) })}
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                    className="rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
                   >
                     <option value={0}>Sunday</option>
                     <option value={1}>Monday</option>
@@ -394,24 +394,24 @@ export function Settings() {
               )}
             </div>
 
-            <div className="border-t border-slate-100 pt-4">
+            <div className="border-t border-ink-100 pt-4">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={settings.monthly_report_enabled}
                   onChange={e => setSettings({ ...settings, monthly_report_enabled: e.target.checked })}
-                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  className="h-4 w-4 rounded border-ink-300 text-accent-500 focus:ring-accent-500"
                 />
                 <div>
-                  <p className="text-sm font-medium text-slate-900">Enable Monthly Reports</p>
-                  <p className="text-xs text-slate-500">Automatically send a report on the 1st of each month</p>
+                  <p className="text-sm font-medium text-ink-900">Enable Monthly Reports</p>
+                  <p className="text-xs text-ink-500">Automatically send a report on the 1st of each month</p>
                 </div>
               </label>
             </div>
           </div>
 
           <div className="mt-6 flex justify-end">
-            <button onClick={handleSaveSettings} disabled={saving} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+            <button onClick={handleSaveSettings} disabled={saving} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 disabled:opacity-50">
               <Save size={16} /> {saving ? 'Saving...' : 'Save Settings'}
             </button>
           </div>

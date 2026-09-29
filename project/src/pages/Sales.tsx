@@ -137,7 +137,7 @@ export function Sales() {
   };
 
   if (loading) {
-    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
+    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-500" /></div>;
   }
 
   return (
@@ -146,59 +146,59 @@ export function Sales() {
         title="Sales"
         subtitle={`${sales.length} sales recorded`}
         actions={isAdmin && (
-          <button onClick={openAdd} disabled={!products.length} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
+          <button onClick={openAdd} disabled={!products.length} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 disabled:opacity-50 transition-colors">
             <Plus size={18} /> New Sale
           </button>
         )}
       />
 
       <div className="mb-4 relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" size={18} />
         <input
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search by sale number or customer..."
-          className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none"
+          className="w-full rounded-sm border py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-accent-500/20 outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
         />
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/60">
+        <div className="rounded-md bg-paper shadow-xs border border-ink-100">
           <EmptyState icon={ShoppingCart} title="No sales recorded" description={products.length ? "Record your first sale to start tracking revenue." : "Add catalogue products to inventory before recording a sale."} action={isAdmin && (
-            <button onClick={openAdd} disabled={!products.length} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+            <button onClick={openAdd} disabled={!products.length} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 disabled:opacity-50">
               <Plus size={18} /> New Sale
             </button>
           )} />
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/60">
+        <div className="overflow-hidden rounded-md bg-paper shadow-xs border border-ink-100">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-ink-50 border-b border-ink-200">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Sale #</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Customer</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Payment</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Amount</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Profit</th>
-                  {isAdmin && <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Actions</th>}
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Sale #</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Customer</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Payment</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Amount</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Profit</th>
+                  {isAdmin && <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Actions</th>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-ink-100">
                 {filtered.map(sale => (
-                  <tr key={sale.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 text-sm font-medium text-slate-900">{sale.sale_number || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{formatDate(sale.sale_date)}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{sale.customer_name || 'Walk-in'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600 capitalize">{sale.payment_method}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-slate-900 text-right">{formatCurrency(sale.total_amount)}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-emerald-600 text-right">{formatCurrency(sale.total_profit)}</td>
+                  <tr key={sale.id} className="hover:bg-ink-50">
+                    <td className="px-4 py-3 text-sm font-medium text-ink-900">{sale.sale_number || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-ink-600" data-numeric>{formatDate(sale.sale_date)}</td>
+                    <td className="px-4 py-3 text-sm text-ink-600">{sale.customer_name || 'Walk-in'}</td>
+                    <td className="px-4 py-3 text-sm text-ink-600 capitalize">{sale.payment_method}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-ink-900 text-right" data-numeric>{formatCurrency(sale.total_amount)}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-accent-500 text-right" data-numeric>{formatCurrency(sale.total_profit)}</td>
                     {isAdmin && (
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button onClick={() => viewSaleDetails(sale)} className="rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600">
+                          <button onClick={() => viewSaleDetails(sale)} className="rounded-sm p-1.5 text-ink-400 hover:bg-accent-50 hover:text-accent-500">
                             <Eye size={16} />
                           </button>
                         </div>
@@ -216,21 +216,21 @@ export function Sales() {
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Customer Name</label>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Customer Name</label>
               <input
                 type="text"
                 value={customerName}
                 onChange={e => setCustomerName(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
                 placeholder="Walk-in customer"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Payment Method</label>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Payment Method</label>
               <select
                 value={paymentMethod}
                 onChange={e => setPaymentMethod(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
               >
                 <option value="cash">Cash</option>
                 <option value="mpesa">M-Pesa</option>
@@ -239,24 +239,24 @@ export function Sales() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Sale Date</label>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Sale Date</label>
               <input
                 type="date"
                 value={saleDate}
                 onChange={e => setSaleDate(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500 font-mono tabular-nums"
               />
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
-              <p className="text-sm font-semibold text-slate-900">Sale Items</p>
-              <button onClick={addItem} disabled={!products.length} className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50">
+          <div className="rounded-md border border-ink-200">
+            <div className="flex items-center justify-between border-b border-ink-200 px-4 py-2.5">
+              <p className="text-sm font-semibold text-ink-900">Sale Items</p>
+              <button onClick={addItem} disabled={!products.length} className="flex items-center gap-1 text-sm text-accent-500 hover:text-accent-700 disabled:opacity-50">
                 <Plus size={16} /> Add Item
               </button>
             </div>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-ink-100">
               {saleItems.map((item, index) => {
                 const selectedProduct = products.find(p => p.id === item.product_id);
                 const quantity = Number(item.quantity) || 0;
@@ -268,11 +268,11 @@ export function Sales() {
                       <select
                         value={item.product_id}
                         onChange={e => updateItem(index, 'product_id', e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-blue-500 outline-none"
+                        className="w-full rounded-sm border px-3 py-1.5 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
                       >
                         <option value="">Select catalogue product</option>
                         {products.map(product => (
-                          <option key={product.id} value={product.id} disabled={product.current_stock <= 0}>
+                          <option key={product.id} value={product.id} disabled={product.current_stock <= 0} data-numeric>
                             {product.name} · {product.catalog_sku} · {product.current_stock} {product.unit}
                           </option>
                         ))}
@@ -283,60 +283,60 @@ export function Sales() {
                         min="1"
                         value={item.quantity}
                         onChange={e => updateItem(index, 'quantity', e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:border-blue-500 outline-none"
+                        className="w-full rounded-sm border px-2 py-1.5 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500 font-mono tabular-nums"
                         placeholder="Qty"
                       />
-                      <div className="text-sm text-slate-500 sm:text-right">
+                      <div className="text-sm text-ink-500 sm:text-right" data-numeric>
                         {selectedProduct ? `@ ${formatCurrency(selectedProduct.selling_price)}` : '—'}
                       </div>
-                      <div className="text-right text-sm font-medium text-slate-900">
+                      <div className="text-right text-sm font-medium text-ink-900" data-numeric>
                         {formatCurrency(lineTotal)}
                       </div>
                     </div>
-                    <button onClick={() => removeItem(index)} className="rounded-lg p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Remove sale item">
+                    <button onClick={() => removeItem(index)} className="rounded-sm p-1 text-ink-400 hover:bg-danger/10 hover:text-danger" aria-label="Remove sale item">
                       <X size={16} />
                     </button>
                   </div>
                 );
               })}              {saleItems.length === 0 && (
-                <div className="px-4 py-8 text-center text-sm text-slate-400">No items added. Select a catalogue product to start.</div>
+                <div className="px-4 py-8 text-center text-sm text-ink-400">No items added. Select a catalogue product to start.</div>
               )}
             </div>
-            <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 bg-slate-50">
+            <div className="flex items-center justify-between border-t border-ink-200 px-4 py-3 bg-ink-50">
               <div>
-                <span className="text-sm font-semibold text-slate-900">Total: </span>
-                <span className="text-lg font-bold text-blue-600">{formatCurrency(calculateTotal())}</span>
+                <span className="text-sm font-semibold text-ink-900">Total: </span>
+                <span className="text-lg font-bold text-accent-500" data-numeric>{formatCurrency(calculateTotal())}</span>
               </div>
               <div>
-                <span className="text-sm font-semibold text-emerald-600">Expected Profit: </span>
-                <span className="text-lg font-bold text-emerald-600">{formatCurrency(calculateProfit())}</span>
+                <span className="text-sm font-semibold text-accent-500">Expected Profit: </span>
+                <span className="text-lg font-bold text-accent-500" data-numeric>{formatCurrency(calculateProfit())}</span>
               </div>
             </div>
           </div>
 
-          <div className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-700">
+          <div className="rounded-lg bg-accent-50 px-3 py-2 text-sm text-accent-700">
             Products and prices come from catalogue-linked inventory. Sale totals and stock are verified when saved.
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Note (optional)</label>
+            <label className="block text-sm font-medium text-ink-700 mb-1">Note (optional)</label>
             <textarea
               value={note}
               onChange={e => setNote(e.target.value)}
               rows={2}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+              className="w-full rounded-sm border px-3 py-2 text-sm outline-none border-ink-200 bg-paper focus:border-accent-500"
               placeholder="Additional notes..."
             />
           </div>
 
           <div className="flex justify-end gap-3">
-            <button onClick={() => setModalOpen(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">
+            <button onClick={() => setModalOpen(false)} className="rounded-sm px-4 py-2 text-sm font-medium text-ink-600 hover:bg-ink-100">
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={saving || saleItems.length === 0}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Record Sale'}
             </button>
@@ -348,50 +348,50 @@ export function Sales() {
         {viewSale && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-lg bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Date</p>
-                <p className="text-sm font-medium text-slate-900">{formatDate(viewSale.sale_date)}</p>
+              <div className="rounded-lg bg-ink-50 p-3">
+                <p className="text-xs text-ink-500">Date</p>
+                <p className="text-sm font-medium text-ink-900" data-numeric>{formatDate(viewSale.sale_date)}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Customer</p>
-                <p className="text-sm font-medium text-slate-900">{viewSale.customer_name || 'Walk-in'}</p>
+              <div className="rounded-lg bg-ink-50 p-3">
+                <p className="text-xs text-ink-500">Customer</p>
+                <p className="text-sm font-medium text-ink-900">{viewSale.customer_name || 'Walk-in'}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Payment Method</p>
-                <p className="text-sm font-medium text-slate-900 capitalize">{viewSale.payment_method}</p>
+              <div className="rounded-lg bg-ink-50 p-3">
+                <p className="text-xs text-ink-500">Payment Method</p>
+                <p className="text-sm font-medium text-ink-900 capitalize">{viewSale.payment_method}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3">
-                <p className="text-xs text-slate-500">Note</p>
-                <p className="text-sm font-medium text-slate-900">{viewSale.note || '—'}</p>
+              <div className="rounded-lg bg-ink-50 p-3">
+                <p className="text-xs text-ink-500">Note</p>
+                <p className="text-sm font-medium text-ink-900">{viewSale.note || '—'}</p>
               </div>
             </div>
-            <div className="overflow-hidden rounded-xl border border-slate-200">
+            <div className="overflow-hidden rounded-md border border-ink-200">
               <table className="w-full">
-                <thead className="bg-slate-50">
+                <thead className="bg-ink-50">
                   <tr>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Product</th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Qty</th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Price</th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Total</th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600">Profit</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Product</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Qty</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Price</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Total</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Profit</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-ink-100">
                   {viewItems.map(item => (
                     <tr key={item.id}>
-                      <td className="px-3 py-2 text-sm text-slate-900">{item.product?.name || '—'}</td>
-                      <td className="px-3 py-2 text-sm text-slate-600 text-right">{item.quantity}</td>
-                      <td className="px-3 py-2 text-sm text-slate-600 text-right">{formatCurrency(item.selling_price)}</td>
-                      <td className="px-3 py-2 text-sm font-medium text-slate-900 text-right">{formatCurrency(item.total)}</td>
-                      <td className="px-3 py-2 text-sm text-emerald-600 text-right">{formatCurrency(item.profit)}</td>
+                      <td className="px-3 py-2 text-sm text-ink-900">{item.product?.name || '—'}</td>
+                      <td className="px-3 py-2 text-sm text-ink-600 text-right" data-numeric>{item.quantity}</td>
+                      <td className="px-3 py-2 text-sm text-ink-600 text-right" data-numeric>{formatCurrency(item.selling_price)}</td>
+                      <td className="px-3 py-2 text-sm font-medium text-ink-900 text-right" data-numeric>{formatCurrency(item.total)}</td>
+                      <td className="px-3 py-2 text-sm text-accent-500 text-right" data-numeric>{formatCurrency(item.profit)}</td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="bg-slate-50">
+                <tfoot className="bg-ink-50">
                   <tr>
-                    <td colSpan={3} className="px-3 py-2 text-sm font-semibold text-slate-900 text-right">Total</td>
-                    <td className="px-3 py-2 text-sm font-bold text-slate-900 text-right">{formatCurrency(viewSale.total_amount)}</td>
-                    <td className="px-3 py-2 text-sm font-bold text-emerald-600 text-right">{formatCurrency(viewSale.total_profit)}</td>
+                    <td colSpan={3} className="px-3 py-2 text-sm font-semibold text-ink-900 text-right">Total</td>
+                    <td className="px-3 py-2 text-sm font-bold text-ink-900 text-right" data-numeric>{formatCurrency(viewSale.total_amount)}</td>
+                    <td className="px-3 py-2 text-sm font-bold text-accent-500 text-right" data-numeric>{formatCurrency(viewSale.total_profit)}</td>
                   </tr>
                 </tfoot>
               </table>

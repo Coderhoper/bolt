@@ -7,10 +7,10 @@ import { ScrollText, Search } from 'lucide-react';
 import type { AuditLog } from '@/types';
 
 const ACTION_COLORS: Record<string, string> = {
-  CREATE: 'bg-emerald-100 text-emerald-700',
-  UPDATE: 'bg-blue-100 text-blue-700',
-  DELETE: 'bg-rose-100 text-rose-700',
-  TERMINATE: 'bg-rose-100 text-rose-700',
+  CREATE: 'bg-accent-100 text-accent-700',
+  UPDATE: 'bg-accent-100 text-accent-700',
+  DELETE: 'bg-danger/10 text-danger',
+  TERMINATE: 'bg-danger/10 text-danger',
 };
 
 export function AuditLogs() {
@@ -41,7 +41,7 @@ export function AuditLogs() {
   });
 
   if (loading) {
-    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
+    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-500" /></div>;
   }
 
   return (
@@ -50,19 +50,19 @@ export function AuditLogs() {
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" size={18} />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search by action, user, or description..."
-            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none"
+            className="w-full rounded-sm border py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-accent-500/20 outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
           />
         </div>
         <select
           value={filterAction}
           onChange={e => setFilterAction(e.target.value)}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 outline-none"
+          className="rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
         >
           <option value="all">All Actions</option>
           <option value="CREATE">Create</option>
@@ -73,35 +73,35 @@ export function AuditLogs() {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/60">
+        <div className="rounded-md bg-paper shadow-xs border border-ink-100">
           <EmptyState icon={ScrollText} title="No audit logs found" description="Actions performed by administrators will appear here." />
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/60">
+        <div className="overflow-hidden rounded-md bg-paper shadow-xs border border-ink-100">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-ink-50 border-b border-ink-200">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Date & Time</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">User</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Action</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Description</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Date & Time</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">User</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Action</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Description</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-ink-100">
                 {filtered.map(log => {
                   const actionType = log.action.split('_')[0];
-                  const colorClass = ACTION_COLORS[actionType] || 'bg-slate-100 text-slate-600';
+                  const colorClass = ACTION_COLORS[actionType] || 'bg-ink-100 text-ink-600';
                   return (
-                    <tr key={log.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">{formatDateTime(log.created_at)}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-slate-900">{log.user_name || '—'}</td>
+                    <tr key={log.id} className="hover:bg-ink-50">
+                      <td className="px-4 py-3 text-sm text-ink-600 whitespace-nowrap" data-numeric>{formatDateTime(log.created_at)}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-ink-900">{log.user_name || '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${colorClass}`}>
                           {log.action}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-600">{log.description || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-ink-600">{log.description || '—'}</td>
                     </tr>
                   );
                 })}

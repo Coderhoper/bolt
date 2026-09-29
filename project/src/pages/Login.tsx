@@ -38,32 +38,28 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900" />
-      <div className="absolute top-0 left-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl translate-x-1/2 translate-y-1/2" />
-
-      <div className="relative w-full max-w-md">
+    <div className="flex min-h-screen items-center justify-center bg-ink-50 p-4">
+      <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-emerald-500 shadow-lg shadow-blue-500/25">
-            <Building2 className="text-white" size={32} />
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-accent-500">
+            <Building2 className="text-white" size={22} />
           </div>
-          <h1 className="mt-4 text-2xl font-bold text-white">Business Manager</h1>
-          <p className="mt-1 text-sm text-slate-400">Inventory, Sales & Performance System</p>
+          <h1 className="mt-4 font-display text-xl font-semibold tracking-tight text-ink-900">Business Manager</h1>
+          <p className="mt-1 text-sm text-ink-500">Inventory, Sales & Performance System</p>
         </div>
 
-        <div className="rounded-2xl bg-white/95 backdrop-blur-xl p-8 shadow-2xl">
+        <div className="w-full rounded-md border border-ink-100 bg-paper p-8 shadow-xs">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
+              <label className="mb-1.5 block text-sm font-medium text-ink-700">Email</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" size={18} />
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                  className="w-full rounded-sm border py-2 pl-10 pr-4 text-sm text-ink-900 placeholder-ink-400 outline-none transition-colors h-10 border-ink-200 bg-paper focus:border-accent-500"
                   placeholder="admin@business.com"
                 />
               </div>
@@ -71,30 +67,30 @@ export function Login() {
 
             <div>
               <div className="mb-1.5 flex items-center justify-between">
-                <label className="block text-sm font-medium text-slate-700">Password</label>
+                <label className="block text-sm font-medium text-ink-700">Password</label>
                 {isTenantContextActive() && <button
                   type="button"
                   onClick={handlePasswordRecovery}
                   disabled={loading || recoveryLoading}
-                  className="text-xs font-medium text-blue-700 hover:text-blue-800 disabled:opacity-50"
+                  className="text-xs font-medium text-accent-700 hover:text-accent-900 disabled:opacity-50"
                 >
                   {recoveryLoading ? 'Sending link…' : 'Forgot password?'}
                 </button>}
               </div>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" size={18} />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-10 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                  className="w-full rounded-sm border py-2 pl-10 pr-10 text-sm text-ink-900 placeholder-ink-400 outline-none transition-colors h-10 border-ink-200 bg-paper focus:border-accent-500"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700"
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -104,7 +100,7 @@ export function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-emerald-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:from-blue-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-sm bg-accent-500 text-sm font-semibold text-white transition-colors hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? (
                 <>
@@ -118,7 +114,7 @@ export function Login() {
           </form>
         </div>
 
-        <p className="mt-6 text-center text-xs text-slate-500">
+        <p className="mt-6 text-center text-xs text-ink-500">
           Contact your administrator for account access
         </p>
       </div>

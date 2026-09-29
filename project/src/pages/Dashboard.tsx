@@ -81,7 +81,7 @@ export function Dashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-500" />
       </div>
     );
   }
@@ -97,7 +97,7 @@ export function Dashboard() {
 
       {isTenantContextActive() && isAdmin && <TenantOwnerDesk />}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total Sales" value={formatCurrency(summary?.total_sales || 0)} icon={TrendingUp} color="blue" />
         <StatCard label="Gross Profit" value={formatCurrency(summary?.gross_profit || 0)} icon={BarChart3} color="emerald" />
         <StatCard label="Net Profit" value={formatCurrency(summary?.net_profit || 0)} icon={Target} color={summary && summary.net_profit >= 0 ? 'emerald' : 'rose'} />
@@ -107,20 +107,20 @@ export function Dashboard() {
       </div>
 
       {/* Expected vs Actual */}
-      <div className="mb-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60">
-        <h3 className="text-sm font-semibold text-slate-900 mb-4">Profit Target Performance</h3>
+      <div className="mb-6 rounded-md bg-paper p-6 shadow-xs border border-ink-100">
+        <h3 className="text-sm font-semibold text-ink-900 mb-4">Profit Target Performance</h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-xl bg-slate-50 p-4">
-            <p className="text-xs font-medium text-slate-500">Expected Profit</p>
-            <p className="mt-1 text-xl font-bold text-slate-900">{formatCurrency(summary?.expected_profit || 0)}</p>
+          <div className="rounded-md bg-ink-50 p-4">
+            <p className="text-xs font-medium text-ink-500">Expected Profit</p>
+        <p className="mt-1 font-mono text-xl font-medium tabular-nums text-ink-900" data-numeric>{formatCurrency(summary?.expected_profit || 0)}</p>
           </div>
-          <div className="rounded-xl bg-slate-50 p-4">
-            <p className="text-xs font-medium text-slate-500">Actual Net Profit</p>
-            <p className="mt-1 text-xl font-bold text-slate-900">{formatCurrency(summary?.net_profit || 0)}</p>
+          <div className="rounded-md bg-ink-50 p-4">
+            <p className="text-xs font-medium text-ink-500">Actual Net Profit</p>
+        <p className="mt-1 font-mono text-xl font-medium tabular-nums text-ink-900" data-numeric>{formatCurrency(summary?.net_profit || 0)}</p>
           </div>
-          <div className={`rounded-xl p-4 ${(summary?.deficit || 0) > 0 ? 'bg-rose-50' : 'bg-emerald-50'}`}>
-            <p className="text-xs font-medium text-slate-500">{(summary?.deficit || 0) > 0 ? 'Deficit' : 'Surplus'}</p>
-            <p className={`mt-1 text-xl font-bold ${(summary?.deficit || 0) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+          <div className={`rounded-md p-4 ${(summary?.deficit || 0) > 0 ? 'bg-danger/10' : 'bg-accent-50'}`}>
+            <p className="text-xs font-medium text-ink-500">{(summary?.deficit || 0) > 0 ? 'Deficit' : 'Surplus'}</p>
+            <p className={`mt-1 font-mono text-xl font-medium tabular-nums ${(summary?.deficit || 0) > 0 ? 'text-danger' : 'text-success'}`} data-numeric>
               {formatCurrency(Math.abs(summary?.deficit || 0))}
             </p>
           </div>
@@ -129,45 +129,45 @@ export function Dashboard() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Sales Chart */}
-        <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60">
-          <h3 className="text-sm font-semibold text-slate-900 mb-4">Sales — Last 7 Days</h3>
+        <div className="rounded-md bg-paper p-6 shadow-xs border border-ink-100">
+          <h3 className="text-sm font-semibold text-ink-900 mb-4">Sales — Last 7 Days</h3>
           {salesChart.length > 0 ? (
             <div className="flex items-end justify-between gap-2 h-48">
               {salesChart.map((d, i) => (
                 <div key={i} className="flex flex-1 flex-col items-center gap-2">
                   <div className="w-full flex items-end h-40">
                     <div
-                      className="w-full rounded-t-lg bg-gradient-to-t from-blue-500 to-emerald-400 transition-all hover:opacity-80"
+                      className="w-full rounded-t-md bg-accent-500 transition-opacity duration-150 hover:opacity-80"
                       style={{ height: `${(d.total / maxSale) * 100}%`, minHeight: d.total > 0 ? '4px' : '0' }}
                       title={formatCurrency(d.total)}
                     />
                   </div>
-                  <span className="text-xs text-slate-400">
+                  <span className="font-mono text-xs tabular-nums text-ink-500" data-numeric>
                     {new Date(d.date).toLocaleDateString('en', { weekday: 'short' })}
                   </span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-slate-400 text-center py-12">No sales data yet</p>
+            <p className="text-sm text-ink-400 text-center py-12">No sales data yet</p>
           )}
         </div>
 
         {/* Low Stock Alert */}
-        <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60">
-          <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
-            <AlertTriangle size={16} className="text-amber-500" />
+        <div className="rounded-md bg-paper p-6 shadow-xs border border-ink-100">
+          <h3 className="text-sm font-semibold text-ink-900 mb-4 flex items-center gap-2">
+            <AlertTriangle size={16} className="text-warning" />
             Low Stock Alerts
           </h3>
           {lowStockProducts.length > 0 ? (
             <div className="space-y-3 max-h-48 overflow-y-auto">
               {lowStockProducts.map(p => (
-                <div key={p.id} className="flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2">
+                <div key={p.id} className="flex items-center justify-between rounded-lg bg-warning/10 px-3 py-2">
                   <div>
-                    <p className="text-sm font-medium text-slate-900">{p.name}</p>
-                    <p className="text-xs text-slate-500">Min: {p.minimum_stock} {p.unit}</p>
+                    <p className="text-sm font-medium text-ink-900">{p.name}</p>
+                    <p className="text-xs text-ink-500" data-numeric>Min: {p.minimum_stock} {p.unit}</p>
                   </div>
-                  <span className="text-sm font-bold text-amber-600">{p.current_stock} {p.unit}</span>
+                  <span className="text-sm font-bold text-warning" data-numeric>{p.current_stock} {p.unit}</span>
                 </div>
               ))}
             </div>
@@ -177,33 +177,33 @@ export function Dashboard() {
         </div>
 
         {/* Recent Sales */}
-        <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60 lg:col-span-2">
-          <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
-            <ShoppingCart size={16} className="text-blue-500" />
+        <div className="rounded-md bg-paper p-6 shadow-xs border border-ink-100 lg:col-span-2">
+          <h3 className="text-sm font-semibold text-ink-900 mb-4 flex items-center gap-2">
+            <ShoppingCart size={16} className="text-accent-500" />
             Recent Sales
           </h3>
           {recentSales.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-slate-100">
-                    <th className="pb-2 text-left text-xs font-medium text-slate-500">Sale #</th>
-                    <th className="pb-2 text-left text-xs font-medium text-slate-500">Date</th>
-                    <th className="pb-2 text-left text-xs font-medium text-slate-500">Customer</th>
-                    <th className="pb-2 text-left text-xs font-medium text-slate-500">Payment</th>
-                    <th className="pb-2 text-right text-xs font-medium text-slate-500">Amount</th>
-                    <th className="pb-2 text-right text-xs font-medium text-slate-500">Profit</th>
+                  <tr className="border-b border-ink-100 hover:bg-ink-50">
+                    <th className="pb-2 text-left text-xs font-medium uppercase tracking-wide text-ink-500">Sale #</th>
+                    <th className="pb-2 text-left text-xs font-medium uppercase tracking-wide text-ink-500">Date</th>
+                    <th className="pb-2 text-left text-xs font-medium uppercase tracking-wide text-ink-500">Customer</th>
+                    <th className="pb-2 text-left text-xs font-medium uppercase tracking-wide text-ink-500">Payment</th>
+                    <th className="pb-2 text-right text-xs font-medium uppercase tracking-wide text-ink-500">Amount</th>
+                    <th className="pb-2 text-right text-xs font-medium uppercase tracking-wide text-ink-500">Profit</th>
                   </tr>
                 </thead>
                 <tbody>
                   {recentSales.map(sale => (
-                    <tr key={sale.id} className="border-b border-slate-50 hover:bg-slate-50">
-                      <td className="py-3 text-sm font-medium text-slate-900">{sale.sale_number || '—'}</td>
-                      <td className="py-3 text-sm text-slate-600">{formatDate(sale.sale_date)}</td>
-                      <td className="py-3 text-sm text-slate-600">{sale.customer_name || 'Walk-in'}</td>
-                      <td className="py-3 text-sm text-slate-600 capitalize">{sale.payment_method}</td>
-                      <td className="py-3 text-sm font-semibold text-slate-900 text-right">{formatCurrency(sale.total_amount)}</td>
-                      <td className="py-3 text-sm font-medium text-emerald-600 text-right">{formatCurrency(sale.total_profit)}</td>
+                    <tr key={sale.id} className="border-b border-ink-50 hover:bg-ink-50 border-ink-100">
+                      <td className="py-3 font-mono text-sm font-medium tabular-nums text-ink-900" data-numeric>{sale.sale_number || '—'}</td>
+                      <td className="py-3 font-mono text-sm tabular-nums text-ink-600" data-numeric>{formatDate(sale.sale_date)}</td>
+                      <td className="py-3 text-sm text-ink-600">{sale.customer_name || 'Walk-in'}</td>
+                      <td className="py-3 text-sm text-ink-600 capitalize">{sale.payment_method}</td>
+                      <td className="py-3 text-right font-mono text-sm font-medium tabular-nums text-ink-900" data-numeric>{formatCurrency(sale.total_amount)}</td>
+                      <td className="py-3 text-right font-mono text-sm font-medium tabular-nums text-success" data-numeric>{formatCurrency(sale.total_profit)}</td>
                     </tr>
                   ))}
                 </tbody>

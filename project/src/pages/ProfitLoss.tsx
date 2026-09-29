@@ -85,7 +85,7 @@ export function ProfitLoss() {
   };
 
   if (loading) {
-    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
+    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-500" /></div>;
   }
 
   const revenue = summary.total_sales;
@@ -103,7 +103,7 @@ export function ProfitLoss() {
         title="Profit & Loss"
         subtitle={`${getMonthName(selectedMonth)} ${selectedYear}`}
         actions={isAdmin && (
-          <button onClick={openSetTarget} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+          <button onClick={openSetTarget} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 transition-colors">
             <Target size={18} /> Set Profit Target
           </button>
         )}
@@ -113,14 +113,14 @@ export function ProfitLoss() {
         <select
           value={selectedMonth}
           onChange={e => setSelectedMonth(parseInt(e.target.value))}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 outline-none"
+          className="rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
         >
           {Array.from({ length: 12 }, (_, i) => i + 1).map(m => <option key={m} value={m}>{getMonthName(m)}</option>)}
         </select>
         <select
           value={selectedYear}
           onChange={e => setSelectedYear(parseInt(e.target.value))}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 outline-none"
+          className="rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
         >
           {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => <option key={y} value={y}>{y}</option>)}
         </select>
@@ -136,50 +136,50 @@ export function ProfitLoss() {
       </div>
 
       {/* P&L Breakdown */}
-      <div className="mb-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60">
-        <h3 className="text-sm font-semibold text-slate-900 mb-4">Profit & Loss Statement</h3>
+      <div className="mb-6 rounded-md bg-paper p-6 shadow-xs border border-ink-100">
+        <h3 className="text-sm font-semibold text-ink-900 mb-4">Profit & Loss Statement</h3>
         <div className="space-y-3">
-          <div className="flex items-center justify-between py-2 border-b border-slate-100">
-            <span className="text-sm text-slate-600">Revenue</span>
-            <span className="text-sm font-semibold text-slate-900">{formatCurrency(revenue)}</span>
+          <div className="flex items-center justify-between py-2 border-b border-ink-100">
+            <span className="text-sm text-ink-600">Revenue</span>
+            <span className="text-sm font-semibold text-ink-900" data-numeric>{formatCurrency(revenue)}</span>
           </div>
-          <div className="flex items-center justify-between py-2 border-b border-slate-100">
-            <span className="text-sm text-slate-600">Less: Cost of Goods Sold</span>
-            <span className="text-sm font-semibold text-rose-600">({formatCurrency(cogs)})</span>
+          <div className="flex items-center justify-between py-2 border-b border-ink-100">
+            <span className="text-sm text-ink-600">Less: Cost of Goods Sold</span>
+            <span className="text-sm font-semibold text-danger" data-numeric>({formatCurrency(cogs)})</span>
           </div>
-          <div className="flex items-center justify-between py-2 border-b-2 border-slate-200">
-            <span className="text-sm font-medium text-slate-900">Gross Profit</span>
-            <span className="text-sm font-bold text-emerald-600">{formatCurrency(grossProfit)}</span>
+          <div className="flex items-center justify-between py-2 border-b-2 border-ink-200">
+            <span className="text-sm font-medium text-ink-900">Gross Profit</span>
+            <span className="text-sm font-bold text-accent-500" data-numeric>{formatCurrency(grossProfit)}</span>
           </div>
-          <div className="flex items-center justify-between py-2 border-b border-slate-100">
-            <span className="text-sm text-slate-600">Less: Operating Expenses</span>
-            <span className="text-sm font-semibold text-rose-600">({formatCurrency(expenses)})</span>
+          <div className="flex items-center justify-between py-2 border-b border-ink-100">
+            <span className="text-sm text-ink-600">Less: Operating Expenses</span>
+            <span className="text-sm font-semibold text-danger" data-numeric>({formatCurrency(expenses)})</span>
           </div>
-          <div className="flex items-center justify-between py-2 border-b-2 border-slate-200">
-            <span className="text-sm font-medium text-slate-900">Net Profit</span>
-            <span className="text-base font-bold text-slate-900">{formatCurrency(netProfit)}</span>
+          <div className="flex items-center justify-between py-2 border-b-2 border-ink-200">
+            <span className="text-sm font-medium text-ink-900">Net Profit</span>
+            <span className="text-base font-bold text-ink-900" data-numeric>{formatCurrency(netProfit)}</span>
           </div>
         </div>
       </div>
 
       {/* Expected vs Actual */}
-      <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60">
-        <h3 className="text-sm font-semibold text-slate-900 mb-4">Target Performance</h3>
+      <div className="rounded-md bg-paper p-6 shadow-xs border border-ink-100">
+        <h3 className="text-sm font-semibold text-ink-900 mb-4">Target Performance</h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-xl bg-violet-50 p-4">
-            <p className="text-xs font-medium text-slate-500">Expected Profit</p>
-            <p className="mt-1 text-xl font-bold text-slate-900">{formatCurrency(expected)}</p>
+          <div className="rounded-md bg-accent-50 p-4">
+            <p className="text-xs font-medium text-ink-500">Expected Profit</p>
+            <p className="mt-1 text-xl font-bold text-ink-900" data-numeric>{formatCurrency(expected)}</p>
           </div>
-          <div className="rounded-xl bg-slate-50 p-4">
-            <p className="text-xs font-medium text-slate-500">Actual Net Profit</p>
-            <p className="mt-1 text-xl font-bold text-slate-900">{formatCurrency(netProfit)}</p>
+          <div className="rounded-md bg-ink-50 p-4">
+            <p className="text-xs font-medium text-ink-500">Actual Net Profit</p>
+            <p className="mt-1 text-xl font-bold text-ink-900" data-numeric>{formatCurrency(netProfit)}</p>
           </div>
-          <div className={`rounded-xl p-4 ${deficit > 0 ? 'bg-rose-50' : 'bg-emerald-50'}`}>
-            <p className="text-xs font-medium text-slate-500 flex items-center gap-1">
+          <div className={`rounded-md p-4 ${deficit > 0 ? 'bg-danger/10' : 'bg-accent-50'}`}>
+            <p className="text-xs font-medium text-ink-500 flex items-center gap-1">
               {deficit > 0 ? 'Deficit' : (achieved ? 'Surplus' : 'On Track')}
-              {achieved && <CheckCircle size={14} className="text-emerald-600" />}
+              {achieved && <CheckCircle size={14} className="text-accent-500" />}
             </p>
-            <p className={`mt-1 text-xl font-bold ${deficit > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+            <p className={`mt-1 text-xl font-bold ${deficit > 0 ? 'text-danger' : 'text-accent-500'}`} data-numeric>
               {formatCurrency(Math.abs(deficit))}
             </p>
           </div>
@@ -187,12 +187,12 @@ export function ProfitLoss() {
         {expected > 0 && (
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-500">Progress toward target</span>
-              <span className="text-xs font-medium text-slate-700">{Math.min(100, Math.round((netProfit / expected) * 100))}%</span>
+              <span className="text-xs text-ink-500">Progress toward target</span>
+              <span className="text-xs font-medium text-ink-700">{Math.min(100, Math.round((netProfit / expected) * 100))}%</span>
             </div>
-            <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div className="h-2 rounded-full bg-ink-100 overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all ${achieved ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                className={`h-full rounded-full transition-colors ${achieved ? 'bg-accent-500' : 'bg-accent-500'}`}
                 style={{ width: `${Math.min(100, (netProfit / expected) * 100)}%` }}
               />
             </div>
@@ -202,21 +202,21 @@ export function ProfitLoss() {
 
       {/* Profit Target History */}
       {targets.length > 0 && (
-        <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60">
-          <h3 className="text-sm font-semibold text-slate-900 mb-4">Profit Target History</h3>
+        <div className="mt-6 rounded-md bg-paper p-6 shadow-xs border border-ink-100">
+          <h3 className="text-sm font-semibold text-ink-900 mb-4">Profit Target History</h3>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="pb-2 text-left text-xs font-medium text-slate-500">Period</th>
-                  <th className="pb-2 text-right text-xs font-medium text-slate-500">Expected</th>
+                <tr className="border-b border-ink-100 hover:bg-ink-50">
+                  <th className="pb-2 text-left text-xs font-medium text-ink-500 uppercase tracking-wide">Period</th>
+                  <th className="pb-2 text-right text-xs font-medium text-ink-500 uppercase tracking-wide">Expected</th>
                 </tr>
               </thead>
               <tbody>
                 {targets.map(t => (
-                  <tr key={t.id} className="border-b border-slate-50">
-                    <td className="py-2 text-sm text-slate-900">{getMonthName(t.target_month)} {t.target_year}</td>
-                    <td className="py-2 text-sm font-medium text-slate-900 text-right">{formatCurrency(t.expected_profit)}</td>
+                  <tr key={t.id} className="border-b border-ink-50 border-ink-100 hover:bg-ink-50">
+                    <td className="py-2 text-sm text-ink-900" data-numeric>{getMonthName(t.target_month)} {t.target_year}</td>
+                    <td className="py-2 text-sm font-medium text-ink-900 text-right" data-numeric>{formatCurrency(t.expected_profit)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -227,22 +227,22 @@ export function ProfitLoss() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={`Profit Target — ${getMonthName(selectedMonth)} ${selectedYear}`}>
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">Set the expected monthly profit target. The system will compare actual net profit against this target to calculate deficits or surpluses.</p>
+          <p className="text-sm text-ink-600">Set the expected monthly profit target. The system will compare actual net profit against this target to calculate deficits or surpluses.</p>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Expected Profit Amount</label>
+            <label className="block text-sm font-medium text-ink-700 mb-1">Expected Profit Amount</label>
             <input
               type="number"
               step="0.01"
               value={targetAmount}
               onChange={e => setTargetAmount(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+              className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500 font-mono tabular-nums"
               placeholder="e.g. 500000"
             />
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-3">
-          <button onClick={() => setModalOpen(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
-          <button onClick={handleSaveTarget} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Save Target</button>
+          <button onClick={() => setModalOpen(false)} className="rounded-sm px-4 py-2 text-sm font-medium text-ink-600 hover:bg-ink-100">Cancel</button>
+          <button onClick={handleSaveTarget} className="rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700">Save Target</button>
         </div>
       </Modal>
     </div>

@@ -10,30 +10,30 @@ interface StatCardProps {
 }
 
 const colorClasses = {
-  blue: { bg: 'bg-blue-50', icon: 'text-blue-600', ring: 'ring-blue-100' },
-  emerald: { bg: 'bg-emerald-50', icon: 'text-emerald-600', ring: 'ring-emerald-100' },
-  amber: { bg: 'bg-amber-50', icon: 'text-amber-600', ring: 'ring-amber-100' },
-  rose: { bg: 'bg-rose-50', icon: 'text-rose-600', ring: 'ring-rose-100' },
-  violet: { bg: 'bg-violet-50', icon: 'text-violet-600', ring: 'ring-violet-100' },
-  slate: { bg: 'bg-slate-50', icon: 'text-slate-600', ring: 'ring-slate-100' },
+  blue: { bg: 'bg-accent-50', icon: 'text-accent-700', ring: 'ring-accent-100' },
+  emerald: { bg: 'bg-accent-50', icon: 'text-accent-700', ring: 'ring-accent-100' },
+  amber: { bg: 'bg-warning/10', icon: 'text-warning', ring: 'ring-warning/10' },
+  rose: { bg: 'bg-danger/10', icon: 'text-danger', ring: 'ring-danger/10' },
+  violet: { bg: 'bg-accent-50', icon: 'text-accent-700', ring: 'ring-accent-100' },
+  slate: { bg: 'bg-ink-50', icon: 'text-ink-600', ring: 'ring-ink-100' },
 };
 
 export function StatCard({ label, value, icon: Icon, trend, trendUp, color = 'slate' }: StatCardProps) {
   const c = colorClasses[color];
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200/60 transition-all hover:shadow-md">
+    <div className="rounded-md border border-ink-100 bg-paper p-5 shadow-xs">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm font-medium text-slate-500">{label}</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-ink-500">{label}</p>
+          <p className="mt-2 font-mono text-2xl font-medium tracking-tight text-ink-900 tabular-nums" data-numeric>{value}</p>
           {trend && (
-            <p className={`mt-1 text-xs font-medium ${trendUp ? 'text-emerald-600' : 'text-rose-600'}`}>
+            <p className={`mt-1 font-mono text-xs font-medium tabular-nums ${trendUp ? 'text-success' : 'text-danger'}`} data-numeric>
               {trend}
             </p>
           )}
         </div>
-        <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${c.bg} ring-4 ${c.ring}`}>
-          <Icon className={c.icon} size={22} />
+        <div className={`flex h-10 w-10 items-center justify-center rounded-md ${c.bg} ring-1 ${c.ring}`}>
+          <Icon className={c.icon} size={20} />
         </div>
       </div>
     </div>

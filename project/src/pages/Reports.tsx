@@ -209,7 +209,7 @@ export function Reports() {
   };
 
   if (loading) {
-    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
+    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-500" /></div>;
   }
 
   return (
@@ -218,20 +218,20 @@ export function Reports() {
         title="Reports"
         subtitle="View and export business performance reports"
         actions={
-          <button onClick={handleExportExcel} className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors">
+          <button onClick={handleExportExcel} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 transition-colors">
             <FileSpreadsheet size={18} /> Export Excel (CSV)
           </button>
         }
       />
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="flex rounded-lg border border-slate-200 bg-white p-1">
+        <div className="flex rounded-md border border-ink-100 bg-paper p-1">
           {(['daily', 'weekly', 'monthly'] as ReportPeriod[]).map(p => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
-              className={`rounded-md px-4 py-1.5 text-sm font-medium capitalize transition-colors ${
-                period === p ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+              className={`rounded-sm px-4 py-1.5 text-sm font-medium capitalize transition-colors ${
+                period === p ? 'bg-accent-500 text-white' : 'text-ink-600 hover:bg-ink-100'
               }`}
             >
               {p}
@@ -239,12 +239,12 @@ export function Reports() {
           ))}
         </div>
         <div className="relative">
-          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" size={16} />
           <input
             type="date"
             value={selectedDate}
             onChange={e => setSelectedDate(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm focus:border-blue-500 outline-none"
+            className="rounded-sm border py-2 pl-9 pr-3 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500 font-mono tabular-nums"
           />
         </div>
       </div>
@@ -260,20 +260,20 @@ export function Reports() {
 
       {/* Per-product performance table */}
       {reportData.saleItems.length > 0 && (
-        <div className="mb-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60">
-          <h3 className="text-sm font-semibold text-slate-900 mb-4">Product Performance</h3>
+        <div className="mb-6 rounded-md bg-paper p-6 shadow-xs border border-ink-100">
+          <h3 className="text-sm font-semibold text-ink-900 mb-4">Product Performance</h3>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-ink-50 border-b border-ink-200">
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-slate-600">Product</th>
-                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-600">Qty Sold</th>
-                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-600">Revenue</th>
-                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-600">Cost</th>
-                  <th className="px-4 py-2 text-right text-xs font-semibold text-slate-600">Profit</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Product</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Qty Sold</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Revenue</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Cost</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Profit</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-ink-100">
                 {Object.entries(
                   reportData.saleItems.reduce((acc, item) => {
                     const key = item.product_id;
@@ -285,12 +285,12 @@ export function Reports() {
                     return acc;
                   }, {} as Record<string, { name: string; qty: number; revenue: number; cost: number; profit: number }>)
                 ).map(([key, p]) => (
-                  <tr key={key} className="hover:bg-slate-50">
-                    <td className="px-4 py-2 text-sm font-medium text-slate-900">{p.name}</td>
-                    <td className="px-4 py-2 text-sm text-slate-600 text-right">{p.qty}</td>
-                    <td className="px-4 py-2 text-sm text-slate-900 text-right">{formatCurrency(p.revenue)}</td>
-                    <td className="px-4 py-2 text-sm text-rose-600 text-right">{formatCurrency(p.cost)}</td>
-                    <td className="px-4 py-2 text-sm font-medium text-emerald-600 text-right">{formatCurrency(p.profit)}</td>
+                  <tr key={key} className="hover:bg-ink-50">
+                    <td className="px-4 py-2 text-sm font-medium text-ink-900">{p.name}</td>
+                    <td className="px-4 py-2 text-sm text-ink-600 text-right" data-numeric>{p.qty}</td>
+                    <td className="px-4 py-2 text-sm text-ink-900 text-right" data-numeric>{formatCurrency(p.revenue)}</td>
+                    <td className="px-4 py-2 text-sm text-danger text-right" data-numeric>{formatCurrency(p.cost)}</td>
+                    <td className="px-4 py-2 text-sm font-medium text-accent-500 text-right" data-numeric>{formatCurrency(p.profit)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -300,19 +300,19 @@ export function Reports() {
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60">
-          <h3 className="text-sm font-semibold text-slate-900 mb-4">Sales ({reportData.sales.length})</h3>
+        <div className="rounded-md bg-paper p-6 shadow-xs border border-ink-100">
+          <h3 className="text-sm font-semibold text-ink-900 mb-4" data-numeric>Sales ({reportData.sales.length})</h3>
           {reportData.sales.length > 0 ? (
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {reportData.sales.map(s => (
-                <div key={s.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                <div key={s.id} className="flex items-center justify-between rounded-lg bg-ink-50 px-3 py-2">
                   <div>
-                    <p className="text-sm font-medium text-slate-900">{s.sale_number || '—'}</p>
-                    <p className="text-xs text-slate-500">{formatDate(s.sale_date)} · {s.customer_name || 'Walk-in'}</p>
+                    <p className="text-sm font-medium text-ink-900">{s.sale_number || '—'}</p>
+                    <p className="text-xs text-ink-500" data-numeric>{formatDate(s.sale_date)} · {s.customer_name || 'Walk-in'}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-slate-900">{formatCurrency(s.total_amount)}</p>
-                    <p className="text-xs text-emerald-600">+{formatCurrency(s.total_profit)}</p>
+                    <p className="text-sm font-semibold text-ink-900" data-numeric>{formatCurrency(s.total_amount)}</p>
+                    <p className="text-xs text-accent-500" data-numeric>+{formatCurrency(s.total_profit)}</p>
                   </div>
                 </div>
               ))}
@@ -322,19 +322,19 @@ export function Reports() {
           )}
         </div>
 
-        <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60">
-          <h3 className="text-sm font-semibold text-slate-900 mb-4">Purchases ({reportData.purchases.length})</h3>
+        <div className="rounded-md bg-paper p-6 shadow-xs border border-ink-100">
+          <h3 className="text-sm font-semibold text-ink-900 mb-4" data-numeric>Purchases ({reportData.purchases.length})</h3>
           {reportData.purchases.length > 0 ? (
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {reportData.purchases.map(p => (
-                <div key={p.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                <div key={p.id} className="flex items-center justify-between rounded-lg bg-ink-50 px-3 py-2">
                   <div>
-                    <p className="text-sm font-medium text-slate-900">{p.invoice_number || 'Purchase'}</p>
-                    <p className="text-xs text-slate-500">{formatDate(p.purchase_date)} · {p.supplier?.name || '—'}</p>
+                    <p className="text-sm font-medium text-ink-900">{p.invoice_number || 'Purchase'}</p>
+                    <p className="text-xs text-ink-500" data-numeric>{formatDate(p.purchase_date)} · {p.supplier?.name || '—'}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-slate-900">{formatCurrency(p.total_amount)}</p>
-                    <span className={`text-xs font-medium ${p.payment_status === 'paid' ? 'text-emerald-600' : p.payment_status === 'partial' ? 'text-amber-600' : 'text-rose-600'}`}>
+                    <p className="text-sm font-semibold text-ink-900" data-numeric>{formatCurrency(p.total_amount)}</p>
+                    <span className={`text-xs font-medium ${p.payment_status === 'paid' ? 'text-accent-500' : p.payment_status === 'partial' ? 'text-warning' : 'text-danger'}`}>
                       {p.payment_status}
                     </span>
                   </div>
@@ -346,17 +346,17 @@ export function Reports() {
           )}
         </div>
 
-        <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200/60">
-          <h3 className="text-sm font-semibold text-slate-900 mb-4">Expenses ({reportData.expenses.length})</h3>
+        <div className="rounded-md bg-paper p-6 shadow-xs border border-ink-100">
+          <h3 className="text-sm font-semibold text-ink-900 mb-4" data-numeric>Expenses ({reportData.expenses.length})</h3>
           {reportData.expenses.length > 0 ? (
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {reportData.expenses.map(e => (
-                <div key={e.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                <div key={e.id} className="flex items-center justify-between rounded-lg bg-ink-50 px-3 py-2">
                   <div>
-                    <p className="text-sm font-medium text-slate-900">{e.category}</p>
-                    <p className="text-xs text-slate-500">{formatDate(e.expense_date)} · {e.description || '—'}</p>
+                    <p className="text-sm font-medium text-ink-900">{e.category}</p>
+                    <p className="text-xs text-ink-500" data-numeric>{formatDate(e.expense_date)} · {e.description || '—'}</p>
                   </div>
-                  <p className="text-sm font-semibold text-rose-600">{formatCurrency(e.amount)}</p>
+                  <p className="text-sm font-semibold text-danger" data-numeric>{formatCurrency(e.amount)}</p>
                 </div>
               ))}
             </div>

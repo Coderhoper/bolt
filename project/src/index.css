@@ -2,47 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  body {
+    @apply bg-ink-50 text-ink-900 font-sans;
+    font-feature-settings: 'ss01', 'cv11';
+  }
+  input:not([type='checkbox']):not([type='radio']):not([type='file']), select {
+    @apply h-10 rounded-sm border border-ink-200 bg-paper focus:border-accent-500;
+  }
+  textarea {
+    @apply rounded-sm border border-ink-200 bg-paper focus:border-accent-500;
+  }
+  input[type='number'], input[type='date'], input[type='datetime-local'], input[type='time'] {
+    @apply font-mono tabular-nums;
+  }
+  .font-mono, [data-numeric] {
+    font-family: theme('fontFamily.mono');
+    font-variant-numeric: tabular-nums;
+  }
+  *:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px theme('colors.accent.100'),
+                0 0 0 1px theme('colors.accent.500');
+    border-radius: inherit;
+  }
+  * { scrollbar-width: thin; scrollbar-color: theme('colors.ink.200') transparent; }
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb { background-color: theme('colors.ink.200'); border-radius: 999px; }
+  *::-webkit-scrollbar-thumb:hover { background-color: theme('colors.ink.300'); }
+}
+
 @layer utilities {
-  .animate-slide-in {
-    animation: slide-in 0.3s ease-out;
+  .animate-slide-in { animation: slide-in 260ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .animate-fade-in  { animation: fade-in 180ms cubic-bezier(0.16, 1, 0.3, 1); }
+  .animate-scale-in { animation: scale-in 180ms cubic-bezier(0.16, 1, 0.3, 1); }
+}
+
+@keyframes slide-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes fade-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scale-in { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
-}
-
-@keyframes slide-in {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.animate-fade-in {
-  animation: fade-in 0.2s ease-out;
-}
-
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
-}
-
-*::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
-  border-radius: 3px;
 }

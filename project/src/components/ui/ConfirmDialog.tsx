@@ -27,24 +27,24 @@ export function ConfirmDialog({
       <div className="flex gap-4">
         {danger && (
           <div className="flex-shrink-0">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
-              <AlertTriangle className="text-red-600" size={20} />
+            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-danger/10">
+              <AlertTriangle className="text-danger" size={20} />
             </div>
           </div>
         )}
-        <p className="text-sm text-slate-600 pt-2">{message}</p>
+        <p className="pt-2 text-sm text-ink-600">{message}</p>
       </div>
       <div className="mt-6 flex justify-end gap-3">
         <button
           onClick={onClose}
-          className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+          className="rounded-sm border border-ink-200 bg-paper px-4 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-ink-50"
         >
           {cancelLabel}
         </button>
         <button
           onClick={() => { onConfirm(); onClose(); }}
-          className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${
-            danger ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-900 hover:bg-slate-800'
+          className={`rounded-sm px-4 py-2 text-sm font-medium text-white transition-colors ${
+            danger ? 'bg-danger hover:bg-danger/90' : 'bg-accent-500 hover:bg-accent-700'
           }`}
         >
           {confirmLabel}

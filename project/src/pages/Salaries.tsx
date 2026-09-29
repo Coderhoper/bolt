@@ -85,7 +85,7 @@ export function Salaries() {
   };
 
   if (loading) {
-    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
+    return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-500" /></div>;
   }
 
   return (
@@ -94,49 +94,49 @@ export function Salaries() {
         title="Salaries"
         subtitle={`${salaries.length} salary records`}
         actions={isAdmin && (
-          <button onClick={openAdd} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+          <button onClick={openAdd} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 transition-colors">
             <Plus size={18} /> Record Salary
           </button>
         )}
       />
 
       {salaries.length === 0 ? (
-        <div className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/60">
+        <div className="rounded-md bg-paper shadow-xs border border-ink-100">
           <EmptyState icon={Wallet} title="No salary records" description="Record monthly salary payments for your employees." action={isAdmin && (
-            <button onClick={openAdd} className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+            <button onClick={openAdd} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700">
               <Plus size={18} /> Record Salary
             </button>
           )} />
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/60">
+        <div className="overflow-hidden rounded-md bg-paper shadow-xs border border-ink-100">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-ink-50 border-b border-ink-200">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Employee</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Period</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Basic</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Allowances</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Deductions</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Net Salary</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Paid On</th>
-                  {isAdmin && <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Actions</th>}
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Employee</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Period</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Basic</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Allowances</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Deductions</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Net Salary</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Paid On</th>
+                  {isAdmin && <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Actions</th>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-ink-100">
                 {salaries.map(s => (
-                  <tr key={s.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 text-sm font-medium text-slate-900">{s.employee?.full_name || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{getMonthName(s.pay_period_month)} {s.pay_period_year}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600 text-right">{formatCurrency(s.basic_salary)}</td>
-                    <td className="px-4 py-3 text-sm text-emerald-600 text-right">{formatCurrency(s.allowances)}</td>
-                    <td className="px-4 py-3 text-sm text-rose-600 text-right">{formatCurrency(s.deductions)}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-slate-900 text-right">{formatCurrency(s.net_salary)}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{formatDate(s.payment_date)}</td>
+                  <tr key={s.id} className="hover:bg-ink-50">
+                    <td className="px-4 py-3 text-sm font-medium text-ink-900">{s.employee?.full_name || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-ink-600" data-numeric>{getMonthName(s.pay_period_month)} {s.pay_period_year}</td>
+                    <td className="px-4 py-3 text-sm text-ink-600 text-right" data-numeric>{formatCurrency(s.basic_salary)}</td>
+                    <td className="px-4 py-3 text-sm text-accent-500 text-right" data-numeric>{formatCurrency(s.allowances)}</td>
+                    <td className="px-4 py-3 text-sm text-danger text-right" data-numeric>{formatCurrency(s.deductions)}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-ink-900 text-right" data-numeric>{formatCurrency(s.net_salary)}</td>
+                    <td className="px-4 py-3 text-sm text-ink-600" data-numeric>{formatDate(s.payment_date)}</td>
                     {isAdmin && (
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => setDeleteId(s.id)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600">
+                        <button onClick={() => setDeleteId(s.id)} className="rounded-sm p-1.5 text-ink-400 hover:bg-danger/10 hover:text-danger">
                           <Trash2 size={16} />
                         </button>
                       </td>
@@ -152,11 +152,11 @@ export function Salaries() {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Record Salary Payment">
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Employee *</label>
+            <label className="block text-sm font-medium text-ink-700 mb-1">Employee *</label>
             <select
               value={formData.employee_id}
               onChange={e => handleEmployeeChange(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+              className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
             >
               <option value="">Select employee...</option>
               {employees.map(e => <option key={e.id} value={e.id}>{e.full_name} — {e.position || 'Staff'}</option>)}
@@ -164,92 +164,92 @@ export function Salaries() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Month</label>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Month</label>
               <select
                 value={formData.pay_period_month}
                 onChange={e => setFormData({ ...formData, pay_period_month: parseInt(e.target.value) })}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
               >
                 {Array.from({ length: 12 }, (_, i) => i + 1).map(m => <option key={m} value={m}>{getMonthName(m)}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Year</label>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Year</label>
               <input
                 type="number"
                 value={formData.pay_period_year}
                 onChange={e => setFormData({ ...formData, pay_period_year: parseInt(e.target.value) })}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500 font-mono tabular-nums"
               />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Basic Salary</label>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Basic Salary</label>
               <input
                 type="number"
                 step="0.01"
                 value={formData.basic_salary}
                 onChange={e => setFormData({ ...formData, basic_salary: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500 font-mono tabular-nums"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Allowances</label>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Allowances</label>
               <input
                 type="number"
                 step="0.01"
                 value={formData.allowances}
                 onChange={e => setFormData({ ...formData, allowances: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500 font-mono tabular-nums"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Deductions</label>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Deductions</label>
               <input
                 type="number"
                 step="0.01"
                 value={formData.deductions}
                 onChange={e => setFormData({ ...formData, deductions: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+                className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500 font-mono tabular-nums"
               />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label>
+            <label className="block text-sm font-medium text-ink-700 mb-1">Payment Date</label>
             <input
               type="date"
               value={formData.payment_date}
               onChange={e => setFormData({ ...formData, payment_date: e.target.value })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+              className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500 font-mono tabular-nums"
             />
           </div>
-          <div className="rounded-lg bg-slate-50 px-4 py-3 flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-600">Net Salary</span>
-            <span className="text-lg font-bold text-blue-600">{formatCurrency(netSalary)}</span>
+          <div className="rounded-lg bg-ink-50 px-4 py-3 flex items-center justify-between">
+            <span className="text-sm font-medium text-ink-600">Net Salary</span>
+            <span className="text-lg font-bold text-accent-500" data-numeric>{formatCurrency(netSalary)}</span>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Note</label>
+            <label className="block text-sm font-medium text-ink-700 mb-1">Note</label>
             <textarea
               value={formData.note}
               onChange={e => setFormData({ ...formData, note: e.target.value })}
               rows={2}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
+              className="w-full rounded-sm border px-3 py-2 text-sm outline-none border-ink-200 bg-paper focus:border-accent-500"
             />
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-3">
-          <button onClick={() => setModalOpen(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">Cancel</button>
-          <button onClick={handleSave} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Record Salary</button>
+          <button onClick={() => setModalOpen(false)} className="rounded-sm px-4 py-2 text-sm font-medium text-ink-600 hover:bg-ink-100">Cancel</button>
+          <button onClick={handleSave} className="rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700">Record Salary</button>
         </div>
       </Modal>
 
       {deleteId && (
-        <div className="fixed bottom-4 right-4 z-50 rounded-xl bg-white shadow-2xl ring-1 ring-slate-200 p-4 max-w-xs">
-          <p className="text-sm text-slate-700 mb-3">Delete this salary record?</p>
+        <div className="fixed bottom-4 right-4 z-50 rounded-md bg-paper shadow-xs border border-ink-100 p-4 max-w-xs">
+          <p className="text-sm text-ink-700 mb-3">Delete this salary record?</p>
           <div className="flex justify-end gap-2">
-            <button onClick={() => setDeleteId(null)} className="rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100">Cancel</button>
-            <button onClick={handleDelete} className="rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700">Delete</button>
+            <button onClick={() => setDeleteId(null)} className="rounded-sm px-3 py-1.5 text-sm text-ink-600 hover:bg-ink-100">Cancel</button>
+            <button onClick={handleDelete} className="rounded-sm bg-danger px-3 py-1.5 text-sm text-white hover:bg-danger">Delete</button>
           </div>
         </div>
       )}

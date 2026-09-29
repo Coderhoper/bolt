@@ -58,8 +58,8 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+      <div className="flex min-h-screen items-center justify-center bg-ink-50">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent-500" />
       </div>
     );
   }

@@ -52,33 +52,44 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Mobile overlay */}
+    <div className="min-h-screen bg-ink-50">
       {sidebarOpen && (
-        <div className="fixed inset-0 z-30 bg-slate-900/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        <div
+          className="fixed inset-0 z-30 bg-ink-900/40 backdrop-blur-sm lg:hidden animate-fade-in"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
 
-      {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-slate-900 transform transition-transform lg:translate-x-0 ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-ink-900 transform transition-transform duration-300 ease-out lg:translate-x-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
         <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between px-5 py-5 border-b border-slate-800">
+          <div className="flex items-center justify-between px-5 py-5 border-b border-ink-800/80">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-emerald-500">
-                <Building2 className="text-white" size={20} />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-500">
+                <Building2 className="text-white" size={18} strokeWidth={2} />
               </div>
               <div>
-                <p className="text-sm font-bold text-white">Business Manager</p>
-                <p className="text-xs text-slate-400">Inventory & Sales</p>
+                <p className="font-display text-[15px] font-semibold tracking-tight text-white leading-none">
+                  Business Manager
+                </p>
+                <p className="mt-1 text-[11px] font-medium tracking-wide uppercase text-ink-400">
+                  Inventory & Sales
+                </p>
               </div>
             </div>
-            <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-white">
-              <X size={20} />
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden text-ink-400 hover:text-white transition-colors"
+              aria-label="Close sidebar"
+            >
+              <X size={18} />
             </button>
           </div>
 
-          <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+          <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
             {visibleItems.map(item => {
               const Icon = item.icon;
               const active = currentPage === item.page;
@@ -89,79 +100,103 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                     onNavigate(item.page);
                     setSidebarOpen(false);
                   }}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+                  className={`group flex w-full items-center gap-3 rounded-sm px-3 py-2 text-[13px] font-medium transition-colors duration-150 ${
                     active
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                      ? 'bg-accent-500/10 text-accent-300'
+                      : 'text-ink-400 hover:bg-ink-800/60 hover:text-white'
                   }`}
                 >
-                  <Icon size={18} />
-                  {item.label}
+                  <Icon
+                    size={16}
+                    strokeWidth={active ? 2.2 : 1.9}
+                    className={active ? 'text-accent-300' : 'text-ink-500 group-hover:text-ink-300'}
+                  />
+                  <span>{item.label}</span>
+                  {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-accent-300" />}
                 </button>
               );
             })}
           </nav>
 
-          <div className="border-t border-slate-800 p-3">
-            <div className="flex items-center gap-3 rounded-lg px-3 py-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-700 text-sm font-semibold text-white">
+          <div className="border-t border-ink-800/80 p-3">
+            <div className="flex items-center gap-3 rounded-md px-2 py-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-ink-800 text-[12px] font-semibold text-white">
                 {profile?.name?.charAt(0).toUpperCase() || 'U'}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="truncate text-sm font-medium text-white">{profile?.name || 'User'}</p>
-                <p className="truncate text-xs text-slate-400 capitalize">{profile?.role || 'user'}</p>
+                <p className="truncate text-[13px] font-medium text-white leading-tight">
+                  {profile?.name || 'User'}
+                </p>
+                <p className="truncate text-[11px] text-ink-400 capitalize mt-0.5">
+                  {profile?.role || 'user'}
+                </p>
               </div>
             </div>
             <button
               onClick={handleSignOut}
-              className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all"
+              className="mt-1 flex w-full items-center gap-3 rounded-sm px-3 py-2 text-[13px] font-medium text-ink-400 hover:bg-ink-800/60 hover:text-white transition-colors duration-150"
             >
-              <LogOut size={18} />
+              <LogOut size={16} strokeWidth={1.9} />
               Sign Out
             </button>
           </div>
         </div>
       </aside>
 
-      {/* Main content */}
       <div className="lg:pl-64">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/80 backdrop-blur-md px-4 lg:px-8">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-slate-600">
-            <Menu size={24} />
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-ink-100 bg-paper/80 backdrop-blur-md px-4 lg:px-8">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="lg:hidden text-ink-700 hover:text-ink-900 transition-colors"
+            aria-label="Open sidebar"
+          >
+            <Menu size={20} />
           </button>
           <div className="hidden lg:block">
-            <p className="text-sm text-slate-500">
-              {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            <p className="font-mono text-[12px] tabular-nums text-ink-500" data-numeric>
+              {new Date().toLocaleDateString('en-GB', {
+                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+              })}
             </p>
           </div>
           <div className="relative">
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className="flex items-center gap-2 rounded-lg px-3 py-1.5 hover:bg-slate-100 transition-colors"
+              className="flex items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-ink-50 transition-colors duration-150"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-ink-900 text-[11px] font-semibold text-white">
                 {profile?.name?.charAt(0).toUpperCase() || 'U'}
               </div>
-              <ChevronDown size={16} className="text-slate-400" />
+              <ChevronDown
+                size={14}
+                className={`text-ink-400 transition-transform duration-200 ${
+                  userMenuOpen ? 'rotate-180' : ''
+                }`}
+              />
             </button>
             {userMenuOpen && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setUserMenuOpen(false)} />
-                <div className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 bg-white py-2 shadow-xl z-20">
-                  <div className="px-4 py-2 border-b border-slate-100">
-                    <p className="text-sm font-semibold text-slate-900">{profile?.name}</p>
-                    <p className="text-xs text-slate-500">{profile?.email}</p>
-                    <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                      isAdmin ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
-                    }`}>
-                      {isAdmin ? 'Administrator' : 'Owner (Read-only)'}
+                <div className="absolute right-0 mt-2 w-60 rounded-md border border-ink-100 bg-paper py-1.5 shadow-lg z-20 animate-scale-in origin-top-right">
+                  <div className="px-4 py-3 border-b border-ink-100">
+                    <p className="text-[13px] font-semibold text-ink-900 leading-tight">
+                      {profile?.name}
+                    </p>
+                    <p className="text-[11px] text-ink-500 mt-0.5 truncate">{profile?.email}</p>
+                    <span
+                      className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                        isAdmin ? 'bg-accent-50 text-accent-700' : 'bg-ink-100 text-ink-600'
+                      }`}
+                    >
+                      <span className="h-1 w-1 rounded-full bg-current" />
+                      {isAdmin ? 'Administrator' : 'Owner'}
                     </span>
                   </div>
                   <button
                     onClick={handleSignOut}
-                    className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                    className="flex w-full items-center gap-2 px-4 py-2 text-[13px] text-ink-700 hover:bg-ink-50 transition-colors duration-150"
                   >
-                    <LogOut size={16} />
+                    <LogOut size={14} strokeWidth={1.9} />
                     Sign Out
                   </button>
                 </div>

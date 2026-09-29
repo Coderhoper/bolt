@@ -31,48 +31,47 @@ export function SetPassword({ onContinue, onReturnToLogin }: { onContinue: () =>
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 p-4">
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900" />
-      <div className="relative w-full max-w-md">
+    <div className="flex min-h-screen items-center justify-center bg-ink-50 p-4">
+      <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-emerald-500 shadow-lg shadow-blue-500/25">
-            <Building2 className="text-white" size={32} />
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-accent-500">
+            <Building2 className="text-white" size={22} />
           </div>
-          <h1 className="mt-4 text-2xl font-bold text-white">Business Manager</h1>
-          <p className="mt-1 text-sm text-slate-400">Set up your tenant account</p>
+          <h1 className="mt-4 font-display text-xl font-semibold tracking-tight text-ink-900">Business Manager</h1>
+          <p className="mt-1 text-sm text-ink-500">Set up your tenant account</p>
         </div>
 
-        <section className="rounded-2xl bg-white/95 p-8 shadow-2xl backdrop-blur-xl">
+        <section className="rounded-md border border-ink-100 bg-paper p-8 shadow-xs">
           {!session ? (
             <>
-              <h2 className="text-lg font-semibold text-slate-900">This link is no longer active</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
+              <h2 className="font-display text-lg font-semibold text-ink-900">This link is no longer active</h2>
+              <p className="mt-2 text-sm leading-6 text-ink-600">
                 Open the latest invitation or password email. If you have already used the invitation, return to sign in and request a password setup link.
               </p>
-              <button type="button" onClick={onReturnToLogin} className="mt-6 w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">
+              <button type="button" onClick={onReturnToLogin} className="mt-6 w-full rounded-sm bg-accent-500 py-2.5 text-sm font-semibold text-white hover:bg-accent-700">
                 Return to sign in
               </button>
             </>
           ) : complete ? (
             <>
-              <h2 className="text-lg font-semibold text-slate-900">Password set</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
+              <h2 className="font-display text-lg font-semibold text-ink-900">Password set</h2>
+              <p className="mt-2 text-sm leading-6 text-ink-600">
                 Your account is ready. Use this tenant link and your email and password to sign in next time.
               </p>
-              <button type="button" onClick={onContinue} className="mt-6 w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">
+              <button type="button" onClick={onContinue} className="mt-6 w-full rounded-sm bg-accent-500 py-2.5 text-sm font-semibold text-white hover:bg-accent-700">
                 Continue to workspace
               </button>
             </>
           ) : (
             <form onSubmit={updatePassword} className="space-y-5">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">Choose your password</h2>
-                <p className="mt-1 text-sm text-slate-500">{session.user.email}</p>
+                <h2 className="font-display text-lg font-semibold text-ink-900">Choose your password</h2>
+                <p className="mt-1 text-sm text-ink-500">{session.user.email}</p>
               </div>
-              <label className="block text-sm font-medium text-slate-700">
+              <label className="block text-sm font-medium text-ink-700">
                 New password
                 <span className="relative mt-1.5 block">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" size={17} />
                   <input
                     type="password"
                     autoComplete="new-password"
@@ -80,11 +79,11 @@ export function SetPassword({ onContinue, onReturnToLogin }: { onContinue: () =>
                     required
                     value={password}
                     onChange={event => setPassword(event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                    className="w-full rounded-sm border py-2.5 pl-10 pr-4 text-sm text-ink-900 outline-none focus:ring-2 focus:ring-accent-100 h-10 border-ink-200 bg-paper focus:border-accent-500"
                   />
                 </span>
               </label>
-              <label className="block text-sm font-medium text-slate-700">
+              <label className="block text-sm font-medium text-ink-700">
                 Confirm password
                 <input
                   type="password"
@@ -93,14 +92,14 @@ export function SetPassword({ onContinue, onReturnToLogin }: { onContinue: () =>
                   required
                   value={confirmation}
                   onChange={event => setConfirmation(event.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                  className="mt-1.5 w-full rounded-sm border px-4 py-2.5 text-sm text-ink-900 outline-none focus:ring-2 focus:ring-accent-100 h-10 border-ink-200 bg-paper focus:border-accent-500"
                 />
               </label>
-              {error && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
+              {error && <p role="alert" className="rounded-lg bg-danger/10 p-3 text-sm text-danger">{error}</p>}
               <button
                 type="submit"
                 disabled={busy}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-emerald-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 hover:from-blue-700 hover:to-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-sm bg-accent-500 text-sm font-semibold text-white transition-colors hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {busy ? <><Loader2 className="animate-spin" size={17} /> Saving password…</> : 'Set password'}
               </button>

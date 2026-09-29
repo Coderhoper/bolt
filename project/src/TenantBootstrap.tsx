@@ -47,21 +47,21 @@ export function TenantBootstrap({ slug }: { slug: string }) {
   }, [slug]);
 
   if (state.ready) return <App />;
-  return <div className="flex min-h-screen items-center justify-center bg-slate-50 p-5">
-    <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+  return <div className="flex min-h-screen items-center justify-center bg-ink-50 p-5">
+    <section className="w-full max-w-md rounded-md border border-ink-100 bg-paper p-8 text-center shadow-xs">
       {state.error
         ? <>
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-warning/10 text-warning">
             <span aria-hidden="true" className="text-2xl">!</span>
           </div>
-          <h1 className="mt-4 text-xl font-bold text-slate-900">Tenant access unavailable</h1>
-          <p role="alert" className="mt-2 text-sm leading-6 text-slate-600">{state.error}</p>
-          <a href="/" className="mt-5 inline-flex rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Return to sign in</a>
+          <h1 className="mt-4 text-xl text-ink-900 font-semibold font-display">Tenant access unavailable</h1>
+          <p role="alert" className="mt-2 text-sm leading-6 text-ink-600">{state.error}</p>
+          <a href="/" className="mt-5 inline-flex rounded-lg border border-ink-300 px-4 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50">Return to sign in</a>
         </>
         : <>
-          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-b-2 border-blue-600" />
-          <h1 className="mt-4 text-lg font-semibold text-slate-900">Connecting to your workspace</h1>
-          <p className="mt-2 text-sm text-slate-500">Loading your secure business workspace.</p>
+          <div className="mx-auto h-10 w-10 animate-spin rounded-full border-b-2 border-accent-500" />
+          <h1 className="mt-4 text-lg font-semibold text-ink-900 font-display">Connecting to your workspace</h1>
+          <p className="mt-2 text-sm text-ink-500">Loading your secure business workspace.</p>
         </>}
     </section>
   </div>;
