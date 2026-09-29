@@ -4,7 +4,7 @@ import { useToast } from '@/components/ui/Toast';
 import {
   LayoutDashboard, Package, ShoppingCart, TrendingUp, Wallet,
   Users, FileText, Settings, ScrollText, LogOut, Menu, X,
-  Building2, Receipt, Target, ChevronDown, Truck,
+  Building2, Receipt, Target, ChevronDown, Truck, ClipboardCheck,
 } from 'lucide-react';
 
 interface NavItem {
@@ -20,6 +20,7 @@ const navItems: NavItem[] = [
   { label: 'Stock Movements', icon: TrendingUp, page: 'stock-movements' },
   { label: 'Sales', icon: ShoppingCart, page: 'sales' },
   { label: 'Purchases', icon: Receipt, page: 'purchases' },
+  { label: 'Receiving', icon: ClipboardCheck, page: 'receiving' },
   { label: 'Suppliers', icon: Truck, page: 'suppliers' },
   { label: 'Expenses', icon: Wallet, page: 'expenses' },
   { label: 'Employees', icon: Users, page: 'employees' },

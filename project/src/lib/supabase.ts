@@ -8,12 +8,12 @@ const defaultTenantId = import.meta.env.VITE_DEFAULT_TENANT_ID || '';
 let activeTenantId = defaultTenantId;
 
 function browserClient(url: string, publishableKey: string, detectSessionInUrl = true, tenantId = defaultTenantId): SupabaseClient {
-    // Tenant context is sent to PostgREST and server functions that must authorize
-    // an action against a specific membership. Auth and Storage stay tenant-neutral.
+    // Tenant context is sent to data, function, and Storage endpoints that enforce
+    // membership-backed row or object policies. Auth stays tenant-neutral.
   const tenantFetch: typeof fetch = (input, init) => {
     const requestUrl = typeof input === 'string' || input instanceof URL ? String(input) : input.url;
     const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined));
-      if (tenantId && (requestUrl.includes('/rest/v1/') || requestUrl.includes('/functions/v1/'))) {
+      if (tenantId && (requestUrl.includes('/rest/v1/') || requestUrl.includes('/functions/v1/') || requestUrl.includes('/storage/v1/'))) {
         headers.set('x-tenant-id', tenantId);
       }
     return fetch(input, { ...init, headers });

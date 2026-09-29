@@ -17,6 +17,7 @@ import { Reports } from '@/pages/Reports';
 import { Settings } from '@/pages/Settings';
 import { AuditLogs } from '@/pages/AuditLogs';
 import { Suppliers } from '@/pages/Suppliers';
+import { Receiving } from '@/pages/Receiving';
 import { isTenantContextActive } from '@/lib/supabase';
 import { invokeTenantOwnerBridge } from '@/lib/tenantOwnerBridge';
 
@@ -35,7 +36,7 @@ function AppContent() {
 
   useEffect(() => {
     if (!session || !profile || !isTenantContextActive()) return;
-    const knownPages = new Set(['dashboard', 'products', 'sales', 'purchases', 'stock-movements', 'reports', 'settings']);
+    const knownPages = new Set(['dashboard', 'products', 'sales', 'purchases', 'receiving', 'stock-movements', 'reports', 'settings']);
     const metricPage = knownPages.has(currentPage) ? currentPage : 'other';
     // Send only a route bucket and increment; never include sales, stock,
     // employees, customers, or transaction details in owner telemetry.
@@ -77,6 +78,7 @@ function AppContent() {
       case 'stock-movements': return <StockMovements />;
       case 'sales': return <Sales />;
       case 'purchases': return <Purchases />;
+      case 'receiving': return <Receiving />;
       case 'suppliers': return <Suppliers />;
       case 'expenses': return <Expenses />;
       case 'employees': return <Employees />;

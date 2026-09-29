@@ -43,3 +43,9 @@ Follow [OWNER_CONTROL_PLANE.md](OWNER_CONTROL_PLANE.md) to apply the owner's iso
 ## Product workflow
 
 Products can only be added by selecting a SKU from the imported hardware catalogue. Cost and selling prices, suppliers, stock levels, and reorder levels are inventory-specific and are entered in the app. Product names, brands, units, and catalogue SKUs come from the catalogue and cannot be hand-created or changed in inventory.
+
+## Supplier receiving
+
+Apply `supabase/migrations/20260929120000_supplier_receiving_workflow.sql` with the other tenant migrations. It creates tenant-scoped purchase orders, inbound shipment notices, a private `receiving-documents` Storage bucket, and the review-to-stock posting procedures. Administrators can create and approve orders, record shipments, upload a supplier invoice or delivery note, map received lines to catalogue products, and post stock from the review screen. Posting also records the existing supplier purchase and credit balance in the same database transaction.
+
+Document line extraction is manual in this release. OCR/LLM providers, WhatsApp and email webhooks, external supplier acknowledgement, and background reconciliation workers from the extended build specification still need separately deployed server-side services and credentials; the browser app does not send supplier documents to an AI provider.
