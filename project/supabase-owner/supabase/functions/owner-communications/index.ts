@@ -70,6 +70,7 @@ Deno.serve(async request => {
 
   let providerMessageId: string | null = null;
   let errorCode: string | null = null;
+  let providerCode: string | null = null;
   try {
     let response: Response;
     if (channel === 'email' && provider === 'postmark') {
@@ -98,7 +99,14 @@ Deno.serve(async request => {
     } else return reply({ error: 'The selected provider does not support this channel' }, 400);
 
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) errorCode = `provider_http_${response.status}`;
+    if (!response.ok) {
+      const rawProviderCode = provider === 'twilio' ? result.code : null;
+      if ((typeof rawProviderCode === 'number' && Number.isInteger(rawProviderCode))
+        || (typeof rawProviderCode === 'string' && /^\d{3,10}$/.test(rawProviderCode))) {
+        providerCode = String(rawProviderCode);
+      }
+      errorCode = providerCode ? `twilio_${providerCode}` : `provider_http_${response.status}`;
+    }
     else providerMessageId = result.MessageID || result.sid || result.messages?.[0]?.id || null;
   } catch {
     errorCode = 'provider_unavailable';
@@ -110,5 +118,7 @@ Deno.serve(async request => {
     p_status: status, p_error_code: errorCode,
   });
   if (logError) return reply({ error: 'Could not record the delivery audit entry' }, 500);
-  return errorCode ? reply({ error: 'The provider did not accept the message', code: errorCode }, 502) : reply({ status, providerMessageId });
+  return errorCode
+    ? reply({ error: 'The provider did not accept the message', code: errorCode, providerCode }, 502)
+    : reply({ status, providerMessageId });
 });

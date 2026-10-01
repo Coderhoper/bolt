@@ -533,8 +533,19 @@ function Communications({ role }: { role: OwnerRole | null }) {
       body: { channel, to: recipient, subject: channel === 'email' ? subject : undefined, text: message, idempotencyKey: crypto.randomUUID() },
     });
     setBusy(false);
-    if (sendError || data?.error) setFailure(data?.error || sendError?.message || 'Message could not be sent.');
-    else { setNotice(`${pretty(channel)} message accepted by the provider.`); setRecipient(''); setSubject(''); setMessage(''); await load(); }
+    if (sendError || data?.error) {
+      let failureMessage = data?.error || sendError?.message || 'Message could not be sent.';
+      const response = (sendError as unknown as { context?: Response } | null)?.context;
+      if (response) {
+        try {
+          const detail = await response.clone().json();
+          if (detail?.providerCode) failureMessage = `${detail.error || failureMessage} (Twilio error ${detail.providerCode})`;
+          else if (detail?.error) failureMessage = detail.error;
+        } catch { /* retain the Functions client's message */ }
+      }
+      setFailure(failureMessage);
+      await load();
+    } else { setNotice(`${pretty(channel)} message accepted by the provider.`); setRecipient(''); setSubject(''); setMessage(''); await load(); }
   };
 
   const channelCards: { id: CommChannel; provider: string; secretNames: string[]; fieldLabel: string; placeholder: string }[] = [
