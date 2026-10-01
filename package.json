@@ -3,6 +3,7 @@
     "dev": "npm --prefix project run dev"
   },
   "dependencies": {
+    "@supabase/server": "^1.8.1",
     "build": "^0.1.4",
     "run": "^2.1.4"
   }
