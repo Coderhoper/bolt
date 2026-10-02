@@ -16,6 +16,34 @@ export function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [workspaceAddress, setWorkspaceAddress] = useState('');
+  const [workspaceError, setWorkspaceError] = useState('');
+
+  const openWorkspace = (e: FormEvent) => {
+    e.preventDefault();
+    const value = workspaceAddress.trim();
+    let slug = value;
+
+    if (/^https?:\/\//i.test(value)) {
+      try {
+        const url = new URL(value);
+        const match = url.pathname.match(/^\/t\/([a-z0-9]+(?:-[a-z0-9]+)*)\/?$/i);
+        if (!match) throw new Error('Use a workspace link ending in /t/your-business-name.');
+        slug = match[1];
+      } catch (error) {
+        setWorkspaceError(error instanceof Error ? error.message : 'Enter a valid workspace link or slug.');
+        return;
+      }
+    } else {
+      slug = value.replace(/^\/?t\//i, '').replace(/\/$/, '');
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(slug)) {
+        setWorkspaceError('Enter the workspace slug from your invitation link.');
+        return;
+      }
+    }
+
+    window.location.assign(`/t/${slug.toLowerCase()}`);
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -186,6 +214,32 @@ export function Login() {
                 : 'Sign In'}
             </button>
           </form>
+
+          {!tenantMode && (
+            <form onSubmit={openWorkspace} className="mt-5 border-t border-ink-100 pt-4">
+              <h3 className="text-sm font-semibold text-ink-800">Employee sign in or registration</h3>
+              <p className="mt-1 text-xs leading-5 text-ink-500">
+                Open the workspace link from your administrator, or enter its business slug.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <input
+                  type="text"
+                  value={workspaceAddress}
+                  onChange={event => { setWorkspaceAddress(event.target.value); setWorkspaceError(''); }}
+                  aria-label="Business workspace link or slug"
+                  placeholder="your-business or https://app.example/t/your-business"
+                  className="h-10 min-w-0 flex-1 rounded-sm border border-ink-200 bg-paper px-3 text-sm text-ink-900 outline-none focus:border-accent-500"
+                />
+                <button
+                  type="submit"
+                  className="shrink-0 rounded-sm border border-ink-300 px-3 text-sm font-medium text-ink-700 hover:bg-ink-50"
+                >
+                  Open workspace
+                </button>
+              </div>
+              {workspaceError && <p role="alert" className="mt-2 text-xs text-danger">{workspaceError}</p>}
+            </form>
+          )}
 
           {notice && <p role="status" className="mt-4 rounded-sm border border-accent-100 bg-accent-50 px-3 py-3 text-sm leading-6 text-accent-900">{notice}</p>}
           {tenantMode && (
