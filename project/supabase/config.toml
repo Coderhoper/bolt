@@ -1,6 +1,11 @@
 [functions.process-receiving-document]
 verify_jwt = true
 
+[functions.payment-gateway]
+# Safaricom callbacks are unauthenticated; every browser action verifies its
+# Supabase access token and active tenant membership inside the function.
+verify_jwt = false
+
 [functions.whatsapp-webhook]
 verify_jwt = false
 

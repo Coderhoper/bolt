@@ -137,6 +137,9 @@ export interface Sale {
   customer_name: string | null;
   sale_date: string;
   payment_method: 'cash' | 'mpesa' | 'bank' | 'credit';
+  payment_status?: 'paid' | 'partial' | 'credit' | 'pending' | 'failed';
+  payment_reference?: string | null;
+  credit_customer_id?: string | null;
   total_amount: number;
   total_cost: number;
   total_profit: number;

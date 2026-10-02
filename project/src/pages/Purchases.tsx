@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { isTenantContextActive, supabase } from '@/lib/supabase';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
@@ -8,11 +8,12 @@ import { logAudit } from '@/lib/audit';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Receipt, Plus, Eye, X } from 'lucide-react';
+import { Receipt, Plus, Eye, X, Smartphone } from 'lucide-react';
 import type { Purchase, Product, Supplier, PurchaseItem } from '@/types';
 
 export function Purchases() {
   const { isAdmin } = useAuth();
+  const tenantMode = isTenantContextActive();
   const { showToast } = useToast();
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -29,6 +30,9 @@ export function Purchases() {
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'partial' | 'credit'>('paid');
   const [amountPaid, setAmountPaid] = useState('');
   const [saving, setSaving] = useState(false);
+  const [payoutTarget, setPayoutTarget] = useState<{ purchase: Purchase; amount: string } | null>(null);
+  const [payoutBusy, setPayoutBusy] = useState(false);
+  const [payoutRemarks, setPayoutRemarks] = useState('');
 
   const loadData = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -119,6 +123,29 @@ export function Purchases() {
     setViewItems(data || []);
   };
 
+  const initiateSupplierPayout = async () => {
+    if (!payoutTarget?.purchase.supplier_id) return;
+    const amount = Number(payoutTarget.amount);
+    if (!Number.isSafeInteger(amount) || amount < 1) { showToast('Enter a positive whole KSh amount', 'error'); return; }
+    setPayoutBusy(true);
+    const { data, error } = await supabase.functions.invoke('payment-gateway', { body: {
+      action: 'initiate-supplier-payment', supplierId: payoutTarget.purchase.supplier_id,
+      purchaseId: payoutTarget.purchase.id, amount, remarks: payoutRemarks.trim() || `Invoice ${payoutTarget.purchase.invoice_number || payoutTarget.purchase.id.slice(0,8)}`,
+    } });
+    if (error || data?.error) {
+      let message = data?.error || error?.message || 'Supplier payout could not be started';
+      const response = (error as unknown as { context?: Response } | null)?.context;
+      if (response) { try { message = (await response.clone().json())?.error || message; } catch { /* preserve */ } }
+      showToast(message, 'error');
+    } else {
+      await logAudit('INITIATE_SUPPLIER_MPESA_PAYMENT','payment',data.paymentId,`M-Pesa supplier payout initiated for purchase ${payoutTarget.purchase.invoice_number || payoutTarget.purchase.id}`);
+      showToast('Supplier payout submitted. The payable balance changes after Safaricom confirms it.', 'success');
+      setPayoutTarget(null);
+      setPayoutRemarks('');
+    }
+    setPayoutBusy(false);
+  };
+
   if (loading) {
     return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-500" /></div>;
   }
@@ -175,9 +202,16 @@ export function Purchases() {
                     </td>
                     {isAdmin && (
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => viewPurchaseDetails(p)} className="rounded-sm p-1.5 text-ink-400 hover:bg-accent-50 hover:text-accent-500">
-                          <Eye size={16} />
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          {tenantMode && p.supplier_id && p.supplier?.phone && Number(p.amount_paid) < Number(p.total_amount) && <button
+                            onClick={() => { setPayoutTarget({ purchase: p, amount: String(Math.floor(Number(p.total_amount)-Number(p.amount_paid))) }); setPayoutRemarks(''); }}
+                            className="inline-flex items-center gap-1 rounded-sm border border-accent-200 px-2 py-1.5 text-xs font-medium text-accent-800 hover:bg-accent-50">
+                            <Smartphone size={14} /> Pay M-Pesa
+                          </button>}
+                          <button onClick={() => viewPurchaseDetails(p)} aria-label={`View invoice ${p.invoice_number || p.id}`} className="rounded-sm p-1.5 text-ink-400 hover:bg-accent-50 hover:text-accent-500">
+                            <Eye size={16} />
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -397,6 +431,27 @@ export function Purchases() {
             </div>
           </div>
         )}
+      </Modal>
+      <Modal open={!!payoutTarget} onClose={() => { if (!payoutBusy) setPayoutTarget(null); }} title="Send supplier payment with M-Pesa" size="md">
+        {payoutTarget && <div className="space-y-4">
+          <div className="rounded-sm bg-warning/10 p-3 text-sm leading-5 text-ink-700">
+            This sends real funds to <strong>{payoutTarget.purchase.supplier?.name}</strong> at the phone number saved on the supplier record ({payoutTarget.purchase.supplier?.phone}). Only proceed after verifying the supplier and invoice.
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm font-medium text-ink-700">Invoice<input readOnly value={payoutTarget.purchase.invoice_number || 'Purchase invoice'} className="mt-1 h-10 w-full rounded-sm border border-ink-200 bg-ink-50 px-3" /></label>
+            <label className="text-sm font-medium text-ink-700">Outstanding balance<input readOnly value={formatCurrency(Number(payoutTarget.purchase.total_amount)-Number(payoutTarget.purchase.amount_paid))} className="mt-1 h-10 w-full rounded-sm border border-ink-200 bg-ink-50 px-3" /></label>
+          </div>
+          <label className="block text-sm font-medium text-ink-700">Amount to send (KES)
+            <input required min="1" max={Number(payoutTarget.purchase.total_amount)-Number(payoutTarget.purchase.amount_paid)} step="1" type="number" value={payoutTarget.amount} onChange={event => setPayoutTarget({ ...payoutTarget, amount: event.target.value })} className="mt-1 h-10 w-full rounded-sm border border-ink-200 px-3" />
+          </label>
+          <label className="block text-sm font-medium text-ink-700">Payment note
+            <input maxLength={100} value={payoutRemarks} onChange={event => setPayoutRemarks(event.target.value)} className="mt-1 h-10 w-full rounded-sm border border-ink-200 px-3" />
+          </label>
+          <div className="flex justify-end gap-2 border-t border-ink-100 pt-4">
+            <button disabled={payoutBusy} onClick={() => setPayoutTarget(null)} className="rounded-sm px-4 py-2 text-sm text-ink-600">Cancel</button>
+            <button disabled={payoutBusy} onClick={() => void initiateSupplierPayout()} className="flex items-center gap-2 rounded-sm bg-accent-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"><Smartphone size={16} />{payoutBusy ? 'Submitting…' : 'Send M-Pesa payment'}</button>
+          </div>
+        </div>}
       </Modal>
     </div>
   );

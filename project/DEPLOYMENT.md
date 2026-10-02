@@ -98,6 +98,36 @@ Tenant administrators keep full access. Employees can create an account from the
 
 For an existing shared tenant project, a Supabase Owner or Administrator must enable email signups in **Authentication â†’ Sign-in / Providers**. Provisioning previously set `disable_signup=true`; future provisioned tenants receive the enabled setting after the updated `owner-provisioning` function is deployed. New accounts still have no tenant access until an administrator approves their request. Keep email verification enabled if you want Supabase to verify employee email addresses before they request access.
 
+## Customer and supplier payments
+
+Apply `20261002020000_payment_channels_daraja.sql` to each tenant database after the staff and receipt migrations. This adds a tenant-scoped payment ledger, configurable channels, encrypted Daraja credentials, M-Pesa STK callbacks, administrator M-Pesa supplier payouts and refunds, cash tender/change tracking, approved customer credit limits and FIFO credit receipts. Safaricom callbacks keep ambiguous requests in `PROCESSING` so an operator can check the ledger before attempting another charge.
+
+Regenerate the provisioning bundle and deploy the payment function to the tenant project:
+
+```powershell
+npm.cmd --prefix project run owner:embed-migrations
+npx.cmd supabase db push --workdir .\project\supabase --project-ref <tenant-project-ref>
+npx.cmd supabase functions deploy payment-gateway --workdir .\project\supabase --project-ref <tenant-project-ref>
+npx.cmd supabase functions deploy owner-provisioning --workdir .\project\supabase-owner --project-ref <owner-project-ref>
+```
+
+Run the first three Supabase commands against the tenant project. Deploy the last command against the separate owner project so future tenant projects receive the regenerated migration bundle. The `--prefix project` command runs the migration-bundle generator from the correct directory while keeping these commands runnable from the repository root. A Supabase project Owner or Administrator must run `db push`, function deployment, and secret configuration; a Developer role may not have access to these project endpoints.
+
+Set the function's encryption key and the exact browser origin(s) used by the tenant app. Generate a separate key per tenant project and keep it backed up: the app cannot decrypt saved credentials after this key is lost.
+
+```powershell
+$bytes = New-Object byte[] 32
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($bytes)
+$PaymentKey = [Convert]::ToBase64String($bytes)
+$rng.Dispose()
+npx.cmd supabase secrets set "PAYMENT_CREDENTIALS_ENCRYPTION_KEY=$PaymentKey" "TENANT_APP_BASE_URL=https://your-live-domain.example" "TENANT_APP_ALLOWED_ORIGINS=https://your-live-domain.example" --workdir .\project\supabase --project-ref <tenant-project-ref>
+```
+
+In the tenant app, open **Settings → Payments** and enter that business's Daraja sandbox or production Consumer Key, Consumer Secret, shortcode, and Lipa na M-Pesa passkey. The server verifies the OAuth credentials and encrypts them before storage. To enable supplier payouts, also enter the B2C initiator name and Safaricom-generated security credential, then enable **M-Pesa supplier payout**. Production STK/B2C requires Safaricom to enable the corresponding product and shortcode. Do not paste API secrets into SQL, Vite variables, source files, chat, or a Git commit.
+
+Employees can record a sale using channels enabled by their administrator. Cash change is calculated and saved; M-Pesa checkout requires a whole-KSh total and records Safaricom confirmation on the saved receipt; bank transfer and cheque remain pending for administrator confirmation. Credit is restricted to administrator-approved customers and available limits; manual receipts apply FIFO, and M-Pesa receipts settle the oldest invoice. Administrators can send a partial or full refund only for a confirmed M-Pesa sale, to the original payer phone, up to the amount received. Supplier payments can be sent from an outstanding purchase invoice to the supplier's saved phone; purchase balances change only after a successful B2C callback.
+
 The Paddle fallback expects the self-hosted OCR adapter to accept the file bytes with their MIME type and return JSON shaped as `{ "text": "...", "lines": [{ "description": "...", "supplier_sku": null, "quantity": null, "unit": null, "unit_price": null, "confidence": 0.8, "source_page": 1, "source_bbox": null }], "structured": {} }`. Review and post every extracted receipt manually in the tenant app. Daily reconciliation is scheduled at 18:00 in each tenant's configured timezone when `pg_cron` is available; administrators can also run it from **Automation & controls**.
 
 This repository's production stack is a Vite/Supabase shared database with tenant-scoped rows and RLS, so the workflow extends that architecture rather than introducing the separate per-tenant PostgreSQL clusters, NestJS/FastAPI service, Redis/BullMQ/NATS, Vault/KMS, Kubernetes, or OpenTelemetry stack listed in the aspirational specification. The web app supports mobile camera capture, but there is no separate Expo app or offline queue. Email/SMS/push delivery, supplier portal responses, and owner break-glass tooling still require service and owner-plane work outside these tenant workflows. The email webhook is an adapter contract, not a provider-specific mailbox integration.

@@ -5,9 +5,10 @@ import { useToast } from '@/components/ui/Toast';
 import { logAudit } from '@/lib/audit';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { PaymentSettingsPanel } from '@/components/PaymentSettingsPanel';
 import {
   Settings as SettingsIcon, Plus, Trash2, Users, Mail,
-  Building2, Save, UserPlus, Shield, X,
+  Building2, Save, UserPlus, Shield, X, CreditCard,
 } from 'lucide-react';
 import type { SystemSettings, Profile } from '@/types';
 
@@ -26,7 +27,7 @@ export function Settings() {
   const [staffRequests, setStaffRequests] = useState<StaffRegistrationRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'business' | 'users' | 'email'>('business');
+  const [activeTab, setActiveTab] = useState<'business' | 'users' | 'email' | 'payments'>('business');
   const [newRecipient, setNewRecipient] = useState('');
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'owner' });
@@ -179,6 +180,7 @@ export function Settings() {
           { key: 'business' as const, label: 'Business Info', icon: Building2 },
           { key: 'users' as const, label: 'Users', icon: Users },
           { key: 'email' as const, label: 'Email & Reports', icon: Mail },
+          ...(tenantMode ? [{ key: 'payments' as const, label: 'Payments', icon: CreditCard }] : []),
         ].map(tab => {
           const Icon = tab.icon;
           return (
@@ -507,6 +509,8 @@ export function Settings() {
           </div>
         </div>
       )}
+
+      {activeTab === 'payments' && tenantMode && <PaymentSettingsPanel />}
     </div>
   );
 }
