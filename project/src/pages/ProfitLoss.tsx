@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, getMonthName } from '@/lib/utils';
@@ -24,8 +25,8 @@ export function ProfitLoss() {
   const [modalOpen, setModalOpen] = useState(false);
   const [targetAmount, setTargetAmount] = useState('');
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
     const startDate = new Date(selectedYear, selectedMonth - 1, 1).toISOString().split('T')[0];
     const endDate = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0];
 
@@ -54,10 +55,11 @@ export function ProfitLoss() {
       .limit(12);
 
     setTargets(targetData || []);
-    setLoading(false);
+    if (!quiet) setLoading(false);
   }, [selectedMonth, selectedYear]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData);
 
   const currentTarget = targets.find(t => t.target_month === selectedMonth && t.target_year === selectedYear);
 

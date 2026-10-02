@@ -45,6 +45,10 @@ Deno.serve(async request => {
 
   if (tenantId) {
     if (!uuidPattern.test(tenantId)) return json({ error: 'A valid tenant context is required' }, 400);
+    const tenantClient = createClient(url, anonKey, {
+      global: { headers: { Authorization: `Bearer ${token}`, 'x-tenant-id': tenantId } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
     const [{ data: tenant, error: tenantError }, { data: membership, error: membershipError }] = await Promise.all([
       adminClient.from('business_tenants').select('id,slug,status').eq('id', tenantId).maybeSingle(),
       adminClient.from('tenant_memberships').select('role,status').eq('tenant_id', tenantId).eq('user_id', user.id).maybeSingle(),
@@ -86,10 +90,17 @@ Deno.serve(async request => {
     if (payload.action === 'create') {
       const name = typeof payload.name === 'string' ? payload.name.trim() : '';
       const email = typeof payload.email === 'string' ? payload.email.trim().toLowerCase() : '';
-      const role = payload.role === 'admin' ? 'admin' : 'owner';
+      if (payload.role !== 'user') return json({ error: 'Tenant administrators can create staff users only' }, 403);
+      const role = 'user';
       if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return json({ error: 'A name and valid email address are required' }, 400);
       }
+
+      const { count: activeStaffCount, error: countError } = await adminClient.from('tenant_memberships')
+        .select('user_id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId).eq('role', 'user').eq('status', 'active');
+      if (countError) return json({ error: 'Could not check the staff account limit' }, 500);
+      if ((activeStaffCount || 0) >= 5) return json({ error: 'This tenant already has five active staff users' }, 409);
 
       let existingUser: { id: string; email?: string } | undefined;
       try { existingUser = (await listUsers(adminClient)).find(account => account.email.toLowerCase() === email); }
@@ -105,14 +116,20 @@ Deno.serve(async request => {
         userId = invited.user.id;
       }
 
-      const { error: profileError } = await adminClient.from('profiles')
-        .update({ name, status: 'active' }).eq('id', userId);
-      if (profileError) return json({ error: 'The tenant user profile could not be configured' }, 500);
+      if (!existingUser) {
+        const { error: profileError } = await adminClient.from('profiles').update({ name }).eq('id', userId);
+        if (profileError) {
+          await adminClient.auth.admin.deleteUser(userId);
+          return json({ error: 'The tenant user profile could not be configured' }, 500);
+        }
+      }
 
-      const { error: membershipUpsertError } = await adminClient.from('tenant_memberships').upsert({
-        tenant_id: tenantId, user_id: userId, role, status: 'active',
-      }, { onConflict: 'tenant_id,user_id' });
-      if (membershipUpsertError) return json({ error: 'The tenant membership could not be created' }, 500);
+      const { error: membershipError } = await tenantClient.rpc('admin_add_tenant_user', { p_user_id: userId });
+      if (membershipError) {
+        if (!existingUser) await adminClient.auth.admin.deleteUser(userId);
+        const atLimit = /five active users/i.test(membershipError.message);
+        return json({ error: atLimit ? 'This tenant already has five active staff users' : 'The tenant membership could not be created' }, atLimit ? 409 : 500);
+      }
       return json({ id: userId, email, name, role, invited: !existingUser,
         message: existingUser ? 'Existing account added to this business.' : 'Invitation sent to the new user.' });
     }
@@ -122,12 +139,10 @@ Deno.serve(async request => {
       const status = payload.status === 'inactive' ? 'inactive' : payload.status === 'active' ? 'active' : null;
       if (!id || !status) return json({ error: 'A user and valid status are required' }, 400);
       if (id === user.id && status === 'inactive') return json({ error: 'You cannot deactivate your own account' }, 400);
-      const { data: target, error: targetError } = await adminClient.from('tenant_memberships')
-        .select('user_id').eq('tenant_id', tenantId).eq('user_id', id).maybeSingle();
-      if (targetError || !target) return json({ error: 'User is not a member of this business' }, 404);
-      const { error } = await adminClient.from('tenant_memberships')
-        .update({ status }).eq('tenant_id', tenantId).eq('user_id', id);
-      if (error) return json({ error: 'Could not update the tenant membership' }, 500);
+      const { error } = await tenantClient.rpc('admin_set_tenant_user_status', {
+        p_user_id: id, p_status: status,
+      });
+      if (error) return json({ error: error.message }, /five active users/i.test(error.message) ? 409 : 400);
       return json({ id, status });
     }
 

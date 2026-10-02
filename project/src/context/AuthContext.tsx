@@ -7,6 +7,7 @@ interface AuthContextValue {
   profile: Profile | null;
   loading: boolean;
   isAdmin: boolean;
+  canRecordSales: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, name: string, role: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -106,9 +107,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const isAdmin = profile?.role === 'admin';
+  const canRecordSales = profile?.role === 'user';
 
   return (
-    <AuthContext.Provider value={{ session, profile, loading, isAdmin, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ session, profile, loading, isAdmin, canRecordSales, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

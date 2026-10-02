@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -30,14 +31,15 @@ export function Expenses() {
     category: 'Rent', description: '', amount: '', expense_date: new Date().toISOString().split('T')[0], payment_method: 'cash',
   });
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
     const { data } = await supabase.from('expenses').select('*').order('expense_date', { ascending: false });
     setExpenses(data || []);
-    setLoading(false);
+    if (!quiet) setLoading(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData);
 
   const filtered = expenses.filter(e => {
     const matchesSearch = (e.description || '').toLowerCase().includes(search.toLowerCase()) ||

@@ -84,7 +84,7 @@ function AppContent() {
       case 'suppliers': return <Suppliers />;
       case 'expenses': return <Expenses />;
       case 'employees': return <Employees />;
-      case 'salaries': return <Salaries />;
+      case 'salaries': return isAdmin ? <Salaries /> : <Dashboard />;
       case 'profit-loss': return <ProfitLoss />;
       case 'reports': return <Reports />;
       case 'settings': return isAdmin ? <Settings /> : <Dashboard />;

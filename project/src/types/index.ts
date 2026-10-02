@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'owner';
+export type UserRole = 'admin' | 'owner' | 'user';
 
 export interface Profile {
   id: string;
@@ -177,12 +177,15 @@ export interface Employee {
   full_name: string;
   national_id: string | null;
   phone: string | null;
+  email: string | null;
   address: string | null;
   position: string | null;
   date_employed: string | null;
-  basic_salary: number;
+  basic_salary: number | null;
   employment_status: 'active' | 'inactive' | 'terminated';
   emergency_contact: string | null;
+  id_document_front_path?: string | null;
+  id_document_back_path?: string | null;
   created_at: string;
   updated_at: string;
 }

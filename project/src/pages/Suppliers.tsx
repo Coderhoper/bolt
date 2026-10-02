@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -41,14 +42,15 @@ export function Suppliers() {
     contact_person: '', phone: '', email: '', address: '',
   });
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
     const { data } = await supabase.from('suppliers').select('*').order('name');
     setSuppliers(data || []);
-    setLoading(false);
+    if (!quiet) setLoading(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData);
 
   const filtered = suppliers.filter(s =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||

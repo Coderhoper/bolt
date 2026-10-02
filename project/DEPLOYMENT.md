@@ -76,6 +76,26 @@ Set secrets with `supabase secrets set NAME=value`. Supabase supplies `SUPABASE_
 
 Configure **Automation & controls → Inbound document routing** with a Meta `phone_number_id` or receiving email address, plus each allowed sender. WhatsApp sender numbers are normalized to digits. To receive WhatsApp webhooks, subscribe the Meta app to the `messages` field and use `https://<project-ref>.supabase.co/functions/v1/whatsapp-webhook` as its callback. Incoming media must come from an allowlisted sender; `#help`, `#supplier CODE`, `#asn ASN-NUMBER`, and `#status ASN-NUMBER` are supported. The email function is a generic adapter: the mail provider must POST `to`, `from`, `subject`, `text`, and `attachments[]` entries containing `filename`, `content_type`, and `content_base64` to `/functions/v1/email-inbound-webhook`, with the configured secret header.
 
+## Staff roles, audit, and live updates
+
+Apply `20261002000000_staff_access_realtime_identity_documents.sql` to each existing tenant project. It converts former read-only tenant memberships to the restricted `user` role, adds the five-active-user limit, private employee ID uploads, PII-minimized audit snapshots, and private tenant-authorized realtime invalidation channels. Deploy the updated `admin-users` function after the migration:
+
+```sh
+supabase db push --workdir supabase
+supabase functions deploy admin-users --workdir supabase
+supabase functions deploy owner-provisioning --workdir supabase-owner
+```
+
+Run the first two commands while linked to the existing tenant project, then deploy `owner-provisioning` while linked to the separate owner project so future tenant setups receive the updated migration bundle.
+
+Future provisioned tenant projects receive this migration from the embedded migration bundle. Regenerate that bundle from `project/` whenever tenant migrations change:
+
+```sh
+npm run owner:embed-migrations
+```
+
+Tenant administrators keep full access. They can invite or add up to five active staff users; staff can view permitted operational data and record sales, while settings, staff management, automation controls, salary data, and audit logs stay administrator-only. Employee email, phone, and national ID duplicates are rejected within a tenant; similar email addresses prompt a spelling review. ID images are private and administrator-only.
+
 The Paddle fallback expects the self-hosted OCR adapter to accept the file bytes with their MIME type and return JSON shaped as `{ "text": "...", "lines": [{ "description": "...", "supplier_sku": null, "quantity": null, "unit": null, "unit_price": null, "confidence": 0.8, "source_page": 1, "source_bbox": null }], "structured": {} }`. Review and post every extracted receipt manually in the tenant app. Daily reconciliation is scheduled at 18:00 in each tenant's configured timezone when `pg_cron` is available; administrators can also run it from **Automation & controls**.
 
 This repository's production stack is a Vite/Supabase shared database with tenant-scoped rows and RLS, so the workflow extends that architecture rather than introducing the separate per-tenant PostgreSQL clusters, NestJS/FastAPI service, Redis/BullMQ/NATS, Vault/KMS, Kubernetes, or OpenTelemetry stack listed in the aspirational specification. The web app supports mobile camera capture, but there is no separate Expo app or offline queue. Email/SMS/push delivery, supplier portal responses, and owner break-glass tooling still require service and owner-plane work outside these tenant workflows. The email webhook is an adapter contract, not a provider-specific mailbox integration.

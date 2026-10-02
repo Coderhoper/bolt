@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { isTenantContextActive, supabase } from '@/lib/supabase';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { useToast } from '@/components/ui/Toast';
 import { logAudit } from '@/lib/audit';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -22,8 +23,8 @@ export function Settings() {
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'owner' });
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
     const [{ data: s }, { data: userData, error: usersError }] = await Promise.all([
       supabase.from('system_settings').select('*').maybeSingle(),
       supabase.functions.invoke('admin-users', { body: { action: 'list' } }),
@@ -31,10 +32,11 @@ export function Settings() {
     setSettings(s as SystemSettings || null);
     const profilesWithEmail: Profile[] = usersError ? [] : (userData?.profiles || []);
     setProfiles(profilesWithEmail);
-    setLoading(false);
+    if (!quiet) setLoading(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData);
 
   const handleSaveSettings = async () => {
     if (!settings) return;
@@ -79,15 +81,25 @@ export function Settings() {
       showToast(tenantMode ? 'Enter a name and valid email address' : 'Please fill in all fields', 'error');
       return;
     }
+    const activeStaffCount = profiles.filter(p => ['user', 'owner'].includes(p.role) && p.status === 'active').length;
+    if (tenantMode && activeStaffCount >= 5) {
+      showToast('This tenant already has five active staff users. Deactivate a staff account before inviting another.', 'error');
+      return;
+    }
     if (!tenantMode && newUser.role === 'owner' && profiles.filter(p => p.role === 'owner').length >= 3) {
       showToast('Maximum 3 owners allowed', 'error');
       return;
     }
     const { data, error } = await supabase.functions.invoke('admin-users', {
-      body: { action: 'create', name: newUser.name, email: newUser.email, password: newUser.password, role: newUser.role },
+      body: { action: 'create', name: newUser.name.trim(), email: newUser.email.trim().toLowerCase(), password: newUser.password, role: tenantMode ? 'user' : newUser.role },
     });
     if (error) {
-      showToast(error.message, 'error');
+      let message = error.message;
+      const response = (error as unknown as { context?: Response }).context;
+      if (response) {
+        try { message = (await response.clone().json())?.error || message; } catch { /* keep the client message */ }
+      }
+      showToast(message, 'error');
       return;
     }
     await logAudit('CREATE_USER', 'profile', null, `Created ${newUser.role} user: ${newUser.name} (${newUser.email})`);
@@ -102,7 +114,15 @@ export function Settings() {
     const { error } = await supabase.functions.invoke('admin-users', {
       body: { action: 'status', id: profile.id, status: newStatus },
     });
-    if (error) { showToast(error.message || 'Failed to update user status', 'error'); return; }
+    if (error) {
+      let message = error.message || 'Failed to update user status';
+      const response = (error as unknown as { context?: Response }).context;
+      if (response) {
+        try { message = (await response.clone().json())?.error || message; } catch { /* keep the client message */ }
+      }
+      showToast(message, 'error');
+      return;
+    }
     await logAudit('UPDATE_USER_STATUS', 'profile', profile.id, `${newStatus === 'active' ? 'Activated' : 'Deactivated'} user: ${profile.name}`);
     showToast(`User ${newStatus === 'active' ? 'activated' : 'deactivated'}`, 'success');
     loadData();
@@ -117,6 +137,7 @@ export function Settings() {
   }
 
   const ownerCount = profiles.filter(p => p.role === 'owner').length;
+  const activeStaffCount = profiles.filter(p => ['user', 'owner'].includes(p.role) && p.status === 'active').length;
 
   return (
     <div>
@@ -208,9 +229,9 @@ export function Settings() {
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Shield size={18} className="text-accent-500" />
-              <p className="text-sm text-ink-600" data-numeric>{ownerCount}/3 owners · {profiles.filter(p => p.role === 'admin').length} admin(s)</p>
+              <p className="text-sm text-ink-600" data-numeric>{tenantMode ? `${activeStaffCount}/5 active staff users · ${profiles.filter(p => p.role === 'admin').length} administrator(s)` : `${ownerCount}/3 owners · ${profiles.filter(p => p.role === 'admin').length} admin(s)`}</p>
             </div>
-            <button onClick={() => setShowAddUser(true)} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700">
+            <button onClick={() => setShowAddUser(true)} disabled={tenantMode && activeStaffCount >= 5} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-50">
               <UserPlus size={16} /> Add User
             </button>
           </div>
@@ -301,7 +322,7 @@ export function Settings() {
                     />
                   </div>}
                   {tenantMode && <p className="rounded-lg bg-accent-50 p-3 text-sm text-accent-900">We’ll email an invitation. The new member will set their own password. Their access is limited to this business.</p>}
-                  <div>
+                  {!tenantMode && <div>
                     <label className="block text-sm font-medium text-ink-700 mb-1">Role</label>
                     <select
                       value={newUser.role}
@@ -314,7 +335,8 @@ export function Settings() {
                     {!tenantMode && newUser.role === 'owner' && ownerCount >= 3 && (
                       <p className="mt-1 text-xs text-danger">Maximum 3 owners already reached</p>
                     )}
-                  </div>
+                  </div>}
+                  {tenantMode && <p className="rounded-lg bg-ink-50 p-3 text-sm text-ink-700">User access: record sales and view business data. They cannot change inventory, settings, employee records, purchases or expenses. Your tenant can have up to five active staff users.</p>}
                 </div>
                 <div className="flex justify-end gap-3 px-6 py-4 border-t border-ink-100">
                   <button onClick={() => setShowAddUser(false)} className="rounded-sm px-4 py-2 text-sm font-medium text-ink-600 hover:bg-ink-100">Cancel</button>

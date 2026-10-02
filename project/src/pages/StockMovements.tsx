@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { formatNumber, formatDateTime } from '@/lib/utils';
@@ -21,18 +22,19 @@ export function StockMovements() {
   const [adjustNote, setAdjustNote] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
     const [{ data: m }, { data: p }] = await Promise.all([
       supabase.from('stock_movements').select('*, product:products(*)').order('created_at', { ascending: false }).limit(100),
       supabase.from('products').select('*').eq('status', 'active').order('name'),
     ]);
     setMovements(m || []);
     setProducts(p || []);
-    setLoading(false);
+    if (!quiet) setLoading(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData);
 
   const handleAdjust = async () => {
     if (!adjustProductId || !adjustNewStock) {

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { formatDateTime } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -19,18 +20,19 @@ export function AuditLogs() {
   const [search, setSearch] = useState('');
   const [filterAction, setFilterAction] = useState('all');
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
     const { data } = await supabase
       .from('audit_logs')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(200);
     setLogs(data || []);
-    setLoading(false);
+    if (!quiet) setLoading(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData);
 
   const filtered = logs.filter(l => {
     const matchesSearch = (l.description || '').toLowerCase().includes(search.toLowerCase()) ||

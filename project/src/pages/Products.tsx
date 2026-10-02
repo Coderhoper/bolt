@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, formatNumber } from '@/lib/utils';
@@ -42,8 +43,8 @@ export function Products() {
     minimum_stock: '', maximum_stock: '', status: 'active',
   });
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
     const [{ data: prods }, { data: cats }, { data: sups }] = await Promise.all([
       supabase.from('products').select('*, category:categories(*), supplier:suppliers(*)').order('name'),
       supabase.from('categories').select('*').order('name'),
@@ -54,10 +55,11 @@ export function Products() {
     setCategories(cats || []);
     setCatalog((catalogItems || []) as CatalogVariant[]);
     setSuppliers(sups || []);
-    setLoading(false);
+    if (!quiet) setLoading(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData);
 
   const filtered = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||

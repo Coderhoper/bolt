@@ -1,6 +1,7 @@
 import { useState, ReactNode } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
+import { useCurrentTime } from '@/hooks/useCurrentTime';
 import {
   LayoutDashboard, Package, ShoppingCart, TrendingUp, Wallet,
   Users, FileText, Settings, ScrollText, LogOut, Menu, X,
@@ -25,7 +26,7 @@ const navItems: NavItem[] = [
   { label: 'Suppliers', icon: Truck, page: 'suppliers' },
   { label: 'Expenses', icon: Wallet, page: 'expenses' },
   { label: 'Employees', icon: Users, page: 'employees' },
-  { label: 'Salaries', icon: Wallet, page: 'salaries' },
+  { label: 'Salaries', icon: Wallet, page: 'salaries', adminOnly: true },
   { label: 'Profit & Loss', icon: Target, page: 'profit-loss' },
   { label: 'Reports', icon: FileText, page: 'reports' },
   { label: 'Settings', icon: Settings, page: 'settings', adminOnly: true },
@@ -41,6 +42,7 @@ interface LayoutProps {
 export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const { profile, isAdmin, signOut } = useAuth();
   const { showToast } = useToast();
+  const now = useCurrentTime();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
@@ -128,7 +130,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                   {profile?.name || 'User'}
                 </p>
                 <p className="truncate text-[11px] text-ink-400 capitalize mt-0.5">
-                  {profile?.role || 'user'}
+                  {profile?.role === 'user' ? 'User' : profile?.role || 'User'}
                 </p>
               </div>
             </div>
@@ -154,7 +156,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
           </button>
           <div className="hidden lg:block">
             <p className="font-mono text-[12px] tabular-nums text-ink-500" data-numeric>
-              {new Date().toLocaleDateString('en-GB', {
+              {now.toLocaleDateString('en-GB', {
                 weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
               })}
             </p>
@@ -189,7 +191,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                       }`}
                     >
                       <span className="h-1 w-1 rounded-full bg-current" />
-                      {isAdmin ? 'Administrator' : 'Owner'}
+                      {isAdmin ? 'Administrator' : profile?.role === 'user' ? 'User' : 'Owner'}
                     </span>
                   </div>
                   <button

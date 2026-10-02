@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -29,8 +30,8 @@ export function Purchases() {
   const [amountPaid, setAmountPaid] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
     const [{ data: p }, { data: prods }, { data: sups }] = await Promise.all([
       supabase.from('purchases').select('*, supplier:suppliers(*)').order('created_at', { ascending: false }),
       supabase.from('products').select('*').eq('status', 'active').order('name'),
@@ -39,10 +40,11 @@ export function Purchases() {
     setPurchases(p || []);
     setProducts(prods || []);
     setSuppliers(sups || []);
-    setLoading(false);
+    if (!quiet) setLoading(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData);
 
   const addItem = () => setItems([...items, { product_id: '', quantity: '1', buying_price: '' }]);
   const removeItem = (index: number) => setItems(items.filter((_, i) => i !== index));

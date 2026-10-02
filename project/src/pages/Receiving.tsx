@@ -10,6 +10,7 @@ import { Modal } from '@/components/ui/Modal';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useAuth } from '@/context/AuthContext';
 import { supabase, getActiveTenantId } from '@/lib/supabase';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
 import type { Product, Supplier } from '@/types';
 
@@ -272,6 +273,7 @@ export function Receiving() {
   }, [showToast]);
 
   useEffect(() => { void loadData(); }, [loadData]);
+  useRealtimeRefresh(() => loadData(true));
 
   const pendingDocuments = documents.filter(document => ['uploaded', 'scan_failed', 'extraction_failed', 'extracted', 'matched', 'partially_matched', 'unmatched', 'pending_review', 'reviewed'].includes(document.status));
   const openShipments = shipments.filter(shipment => !['received', 'cancelled', 'resolved'].includes(shipment.status));

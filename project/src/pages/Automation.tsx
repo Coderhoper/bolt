@@ -3,6 +3,7 @@ import { Activity, AlertTriangle, Bell, Check, Clock3, Power, RefreshCw, ShieldC
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useToast } from '@/components/ui/Toast';
 import { supabase, getActiveTenantId } from '@/lib/supabase';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { formatDateTime } from '@/lib/utils';
 import type { Supplier } from '@/types';
 
@@ -104,6 +105,7 @@ export function Automation() {
   };
 
   useEffect(() => { void loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData);
 
   const runReconciliation = async () => {
     setWorking(true);

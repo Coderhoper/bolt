@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { formatCurrency, formatDate, getMonthName } from '@/lib/utils';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
@@ -31,8 +32,8 @@ export function Reports() {
     deficit: 0,
   });
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
     let startDate: string;
     let endDate: string;
 
@@ -89,10 +90,11 @@ export function Reports() {
       totalSales, totalPurchases, totalExpenses, totalCogs,
       grossProfit, netProfit, expectedProfit, deficit,
     });
-    setLoading(false);
+    if (!quiet) setLoading(false);
   }, [period, selectedDate]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData);
 
   const escapeCsv = (val: string | number | null | undefined): string => {
     const s = String(val ?? '');

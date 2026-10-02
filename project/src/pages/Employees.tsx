@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { getActiveTenantId, supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -8,8 +8,40 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { Users, Plus, Pencil, Trash2, Search, Lock } from 'lucide-react';
 import type { Employee } from '@/types';
+
+const EMPLOYEE_ID_BUCKET = 'employee-id-documents';
+
+function normalizedEmail(value: string | null | undefined) {
+  return (value || '').trim().toLowerCase();
+}
+
+function emailSimilarity(left: string, right: string) {
+  const a = normalizedEmail(left);
+  const b = normalizedEmail(right);
+  if (!a || !b) return 0;
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    let diagonal = previous[0];
+    previous[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const above = previous[j];
+      previous[j] = Math.min(previous[j] + 1, previous[j - 1] + 1, diagonal + (a[i - 1] === b[j - 1] ? 0 : 1));
+      diagonal = above;
+    }
+  }
+  return 1 - previous[b.length] / Math.max(a.length, b.length, 1);
+}
+
+function normalizedPhone(value: string | null | undefined) {
+  return (value || '').replace(/\D/g, '');
+}
+
+function normalizedNationalId(value: string | null | undefined) {
+  return (value || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+}
 
 export function Employees() {
   const { isAdmin } = useAuth();
@@ -21,49 +53,94 @@ export function Employees() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    full_name: '', national_id: '', phone: '', address: '', position: '',
+    full_name: '', national_id: '', phone: '', email: '', address: '', position: '',
     date_employed: '', basic_salary: '', employment_status: 'active', emergency_contact: '',
+    id_document_front_path: '', id_document_back_path: '',
   });
+  const [frontPhoto, setFrontPhoto] = useState<File | null>(null);
+  const [backPhoto, setBackPhoto] = useState<File | null>(null);
+  const [similarEmailConfirmed, setSimilarEmailConfirmed] = useState(false);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    const { data } = await supabase.from('employee_directory').select('*').order('full_name');
-    setEmployees(data || []);
-    setLoading(false);
-  }, []);
+  const loadData = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
+    const { data } = isAdmin
+      ? await supabase.from('employees').select('*').order('full_name')
+      : await supabase.from('employee_directory').select('*').order('full_name');
+    setEmployees((data || []) as Employee[]);
+    if (!quiet) setLoading(false);
+  }, [isAdmin]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData);
 
   const filtered = employees.filter(e =>
     e.full_name.toLowerCase().includes(search.toLowerCase()) ||
     (e.position || '').toLowerCase().includes(search.toLowerCase())
   );
+  const similarEmailEmployee = formData.email.trim()
+    ? employees.find(e => e.id !== editingId && e.email && normalizedEmail(e.email) !== normalizedEmail(formData.email)
+      && emailSimilarity(e.email, formData.email) >= 0.82)
+    : undefined;
 
   const openAdd = () => {
     setEditingId(null);
     setFormData({
-      full_name: '', national_id: '', phone: '', address: '', position: '',
+      full_name: '', national_id: '', phone: '', email: '', address: '', position: '',
       date_employed: new Date().toISOString().split('T')[0], basic_salary: '', employment_status: 'active', emergency_contact: '',
+      id_document_front_path: '', id_document_back_path: '',
     });
+    setFrontPhoto(null);
+    setBackPhoto(null);
+    setSimilarEmailConfirmed(false);
     setModalOpen(true);
   };
 
   const openEdit = (e: Employee) => {
     setEditingId(e.id);
     setFormData({
-      full_name: e.full_name, national_id: '', phone: e.phone || '',
+      full_name: e.full_name, national_id: '', phone: e.phone || '', email: e.email || '',
       address: e.address || '', position: e.position || '',
-      date_employed: e.date_employed || '', basic_salary: String(e.basic_salary),
+      date_employed: e.date_employed || '', basic_salary: String(e.basic_salary ?? ''),
       employment_status: e.employment_status, emergency_contact: e.emergency_contact || '',
+      id_document_front_path: e.id_document_front_path || '', id_document_back_path: e.id_document_back_path || '',
     });
+    setFrontPhoto(null);
+    setBackPhoto(null);
+    setSimilarEmailConfirmed(false);
     setModalOpen(true);
   };
 
   const handleSave = async () => {
+    const email = formData.email.trim().toLowerCase();
+    const phoneDigits = normalizedPhone(formData.phone);
+    const nationalId = normalizedNationalId(formData.national_id);
+    const duplicateEmployee = employees.find(e => e.id !== editingId && (
+      (email && normalizedEmail(e.email) === email)
+      || (nationalId && normalizedNationalId(e.national_id) === nationalId)
+      || (phoneDigits && (normalizedPhone(e.phone) === phoneDigits
+        || (phoneDigits.length >= 9 && normalizedPhone(e.phone).length >= 9
+          && phoneDigits.slice(-9) === normalizedPhone(e.phone).slice(-9))))
+    ));
+    if (duplicateEmployee) {
+      showToast('This email, phone number or national ID is already assigned to another employee.', 'error');
+      return;
+    }
+    if (similarEmailEmployee && !similarEmailConfirmed) {
+      showToast('Review the similar email and confirm that this is a different person before saving.', 'error');
+      return;
+    }
+    for (const file of [frontPhoto, backPhoto]) {
+      if (file && (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024)) {
+        showToast('ID photos must be JPEG, PNG or WebP images no larger than 5 MB.', 'error');
+        return;
+      }
+    }
+
     const payload: Partial<Employee> = {
       full_name: formData.full_name,
       national_id: formData.national_id.trim() || null,
       phone: formData.phone || null,
+      email: email || null,
       address: formData.address || null,
       position: formData.position || null,
       date_employed: formData.date_employed || null,
@@ -74,19 +151,48 @@ export function Employees() {
     if (editingId && !formData.national_id.trim()) delete payload.national_id;
     if (!payload.full_name) { showToast('Employee name is required', 'error'); return; }
 
+    let employeeId = editingId;
     if (editingId) {
       const { error } = await supabase.from('employees').update(payload).eq('id', editingId);
-      if (error) { showToast('Failed to update employee', 'error'); return; }
-      await logAudit('UPDATE_EMPLOYEE', 'employee', editingId, `Updated employee: ${payload.full_name}`);
-      showToast('Employee updated', 'success');
+      if (error) { showToast(error.message, 'error'); return; }
     } else {
-      const { error } = await supabase.from('employees').insert(payload);
-      if (error) { showToast('Failed to add employee', 'error'); return; }
-      await logAudit('CREATE_EMPLOYEE', 'employee', null, `Added employee: ${payload.full_name}`);
-      showToast('Employee added', 'success');
+      const { data, error } = await supabase.from('employees').insert(payload).select('id').single();
+      if (error || !data) { showToast(error?.message || 'Could not create employee', 'error'); return; }
+      employeeId = data.id;
     }
+
+    const tenantFolder = getActiveTenantId() || 'legacy';
+    const documentUpdates: Record<string, string> = {};
+    for (const [side, file] of [['front', frontPhoto], ['back', backPhoto]] as const) {
+      if (!file || !employeeId) continue;
+      const path = `${tenantFolder}/${employeeId}/${side}`;
+      const { error } = await supabase.storage.from(EMPLOYEE_ID_BUCKET).upload(path, file, {
+        upsert: true,
+        contentType: file.type,
+        cacheControl: '0',
+      });
+      if (error) {
+        showToast(`Employee saved, but the ${side} ID photo upload failed: ${error.message}`, 'error');
+        setModalOpen(false);
+        void loadData();
+        return;
+      }
+      documentUpdates[side === 'front' ? 'id_document_front_path' : 'id_document_back_path'] = path;
+    }
+    if (employeeId && Object.keys(documentUpdates).length) {
+      const { error } = await supabase.from('employees').update(documentUpdates).eq('id', employeeId);
+      if (error) {
+        showToast(`Employee saved, but ID photo paths could not be recorded: ${error.message}`, 'error');
+        setModalOpen(false);
+        void loadData();
+        return;
+      }
+    }
+
+    await logAudit(editingId ? 'UPDATE_EMPLOYEE' : 'CREATE_EMPLOYEE', 'employee', employeeId, `${editingId ? 'Updated' : 'Added'} employee record`);
+    showToast(editingId ? 'Employee updated' : 'Employee added', 'success');
     setModalOpen(false);
-    loadData();
+    void loadData();
   };
 
   const handleDelete = async () => {
@@ -147,8 +253,9 @@ export function Employees() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Position</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">National ID</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Phone</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Email</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Employed</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Salary</th>
+                  {isAdmin && <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Salary</th>}
                   <th className="px-4 py-3 text-center text-xs font-medium text-ink-600 uppercase tracking-wide">Status</th>
                   {isAdmin && <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Actions</th>}
                 </tr>
@@ -160,13 +267,14 @@ export function Employees() {
                     <td className="px-4 py-3 text-sm text-ink-600">{e.position || '—'}</td>
                     <td className="px-4 py-3 text-sm text-ink-600">
                       <span className="flex items-center gap-1">
-                        {e.national_id || '—'}
+                        {e.national_id ? `••••${e.national_id.slice(-4)}` : '—'}
                         {!isAdmin && e.national_id && <Lock size={12} className="text-ink-400" />}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-ink-600">{e.phone || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-ink-600">{e.email || '—'}</td>
                     <td className="px-4 py-3 text-sm text-ink-600" data-numeric>{e.date_employed ? formatDate(e.date_employed) : '—'}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-ink-900 text-right" data-numeric>{formatCurrency(e.basic_salary)}</td>
+                    {isAdmin && <td className="px-4 py-3 text-sm font-semibold text-ink-900 text-right" data-numeric>{formatCurrency(e.basic_salary || 0)}</td>}
                     <td className="px-4 py-3 text-center">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                         e.employment_status === 'active' ? 'bg-accent-100 text-accent-700' :
@@ -229,6 +337,20 @@ export function Employees() {
             />
           </div>
           <div>
+            <label className="block text-sm font-medium text-ink-700 mb-1">Email</label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={e => { setFormData({ ...formData, email: e.target.value }); setSimilarEmailConfirmed(false); }}
+              className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
+              placeholder="employee@business.com"
+            />
+            {similarEmailEmployee && <label className="mt-2 flex items-start gap-2 text-xs text-warning">
+              <input type="checkbox" checked={similarEmailConfirmed} onChange={event => setSimilarEmailConfirmed(event.target.checked)} />
+              <span>This email is similar to another employee’s. I checked the spelling and confirmed it belongs to a different person.</span>
+            </label>}
+          </div>
+          <div>
             <label className="block text-sm font-medium text-ink-700 mb-1">Position</label>
             <input
               type="text"
@@ -288,6 +410,20 @@ export function Employees() {
               rows={2}
               className="w-full rounded-sm border px-3 py-2 text-sm outline-none border-ink-200 bg-paper focus:border-accent-500"
             />
+          </div>
+          <div className="sm:col-span-2 rounded-md border border-ink-100 bg-ink-50 p-4">
+            <h3 className="text-sm font-semibold text-ink-800">Identity card photos</h3>
+            <p className="mt-1 text-xs text-ink-500">Private files, visible to tenant administrators only. JPEG, PNG or WebP up to 5 MB each.</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="block text-sm font-medium text-ink-700">Front side
+                <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={event => setFrontPhoto(event.target.files?.[0] || null)} className="mt-1 block w-full text-xs" />
+                {frontPhoto ? <span className="mt-1 block truncate text-xs text-accent-700">Selected: {frontPhoto.name}</span> : formData.id_document_front_path && <span className="mt-1 block text-xs text-accent-700">Front photo already saved</span>}
+              </label>
+              <label className="block text-sm font-medium text-ink-700">Back side
+                <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={event => setBackPhoto(event.target.files?.[0] || null)} className="mt-1 block w-full text-xs" />
+                {backPhoto ? <span className="mt-1 block truncate text-xs text-accent-700">Selected: {backPhoto.name}</span> : formData.id_document_back_path && <span className="mt-1 block text-xs text-accent-700">Back photo already saved</span>}
+              </label>
+            </div>
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-3">

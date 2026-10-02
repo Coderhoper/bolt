@@ -7,6 +7,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { TenantOwnerDesk } from '@/components/TenantOwnerDesk';
 import { isTenantContextActive } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { getTimeGreeting, useCurrentTime } from '@/hooks/useCurrentTime';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import {
   TrendingUp, Wallet, Package, AlertTriangle,
   Target, BarChart3, ShoppingCart,
@@ -14,15 +16,16 @@ import {
 import type { DashboardSummary, Sale, Product } from '@/types';
 
 export function Dashboard() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, profile } = useAuth();
+  const now = useCurrentTime();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [recentSales, setRecentSales] = useState<Sale[]>([]);
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
   const [salesChart, setSalesChart] = useState<{ date: string; total: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
     const today = new Date();
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
@@ -73,10 +76,11 @@ export function Dashboard() {
       setSalesChart(chart);
     }
 
-    setLoading(false);
+    if (!quiet) setLoading(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData);
 
   if (loading) {
     return (
@@ -91,7 +95,7 @@ export function Dashboard() {
   return (
     <div>
       <PageHeader
-        title="Dashboard"
+        title={`${getTimeGreeting(now)}${profile?.name ? `, ${profile.name.split(/\s+/)[0]}` : ''}`}
         subtitle={`${formatDate(summary?.start_date || new Date())} — ${formatDate(summary?.end_date || new Date())}`}
       />
 

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { useToast } from '@/components/ui/Toast';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { logAudit } from '@/lib/audit';
@@ -13,7 +14,8 @@ import {
 import type { Sale, Product, SaleItem } from '@/types';
 
 export function Sales() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, canRecordSales } = useAuth();
+  const canCreateSale = isAdmin || canRecordSales;
   const { showToast } = useToast();
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -29,8 +31,8 @@ export function Sales() {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
     const [{ data: s }, { data: p }] = await Promise.all([
       supabase.from('sales').select('*').order('created_at', { ascending: false }),
       supabase.from('products').select('*').eq('status', 'active')
@@ -38,10 +40,11 @@ export function Sales() {
     ]);
     setSales(s || []);
     setProducts(p || []);
-    setLoading(false);
+    if (!quiet) setLoading(false);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData);
 
   const filtered = sales.filter(s =>
     (s.sale_number || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -145,7 +148,7 @@ export function Sales() {
       <PageHeader
         title="Sales"
         subtitle={`${sales.length} sales recorded`}
-        actions={isAdmin && (
+        actions={canCreateSale && (
           <button onClick={openAdd} disabled={!products.length} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 disabled:opacity-50 transition-colors">
             <Plus size={18} /> New Sale
           </button>
@@ -165,7 +168,7 @@ export function Sales() {
 
       {filtered.length === 0 ? (
         <div className="rounded-md bg-paper shadow-xs border border-ink-100">
-          <EmptyState icon={ShoppingCart} title="No sales recorded" description={products.length ? "Record your first sale to start tracking revenue." : "Add catalogue products to inventory before recording a sale."} action={isAdmin && (
+          <EmptyState icon={ShoppingCart} title="No sales recorded" description={products.length ? "Record your first sale to start tracking revenue." : "Add catalogue products to inventory before recording a sale."} action={canCreateSale && (
             <button onClick={openAdd} disabled={!products.length} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 disabled:opacity-50">
               <Plus size={18} /> New Sale
             </button>
@@ -183,7 +186,7 @@ export function Sales() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Payment</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Amount</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Profit</th>
-                  {isAdmin && <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Actions</th>}
+                  <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ink-100">
@@ -195,15 +198,13 @@ export function Sales() {
                     <td className="px-4 py-3 text-sm text-ink-600 capitalize">{sale.payment_method}</td>
                     <td className="px-4 py-3 text-sm font-semibold text-ink-900 text-right" data-numeric>{formatCurrency(sale.total_amount)}</td>
                     <td className="px-4 py-3 text-sm font-medium text-accent-500 text-right" data-numeric>{formatCurrency(sale.total_profit)}</td>
-                    {isAdmin && (
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button onClick={() => viewSaleDetails(sale)} className="rounded-sm p-1.5 text-ink-400 hover:bg-accent-50 hover:text-accent-500">
-                            <Eye size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    )}
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => viewSaleDetails(sale)} className="rounded-sm p-1.5 text-ink-400 hover:bg-accent-50 hover:text-accent-500" aria-label={`View sale ${sale.sale_number || sale.id}`}>
+                          <Eye size={16} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
