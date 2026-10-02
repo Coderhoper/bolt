@@ -34,6 +34,14 @@ npx supabase functions deploy tenant-bridge --workdir supabase-owner --project-r
 
 `tenant-bridge` has JWT gateway verification disabled because tenant users have tokens from the shared tenant project. The function verifies each token with that project, confirms the selected tenant membership there, and then applies Owner-side operations through its server key. Do not expose the Owner service key in the tenant application.
 
+The bridge allows the production app origin above and localhost by default. If the app uses a custom domain or another Vercel production origin, allow its exact origin in the Owner project's Edge Function secrets (comma-separated for multiple origins), then redeploy the tenant app if its public Owner URL/key changed:
+
+```powershell
+npx supabase secrets set TENANT_APP_ALLOWED_ORIGINS=https://app.example.com --workdir supabase-owner --project-ref <owner-project-ref>
+```
+
+The browser will show an actionable error if it cannot reach the bridge, which usually means the function has not been deployed to the Owner project or the current app origin is not allowed.
+
 Set these secrets on the Owner Supabase project using values from your own Supabase organization; never put them in Vite or commit them:
 
 - `lapdav`: a scoped Supabase Management API personal access token. It needs permission to list organization projects, manage API keys for the shared tenant project, apply database migrations (or run database write queries if the migrations API is unavailable), and update its Auth configuration.

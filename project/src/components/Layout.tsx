@@ -2,6 +2,7 @@ import { useState, ReactNode } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { useCurrentTime } from '@/hooks/useCurrentTime';
+import { isTenantContextActive } from '@/lib/supabase';
 import {
   LayoutDashboard, Package, ShoppingCart, TrendingUp, Wallet,
   Users, FileText, Settings, ScrollText, LogOut, Menu, X,
@@ -41,12 +42,15 @@ interface LayoutProps {
 
 export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const { profile, isAdmin, signOut } = useAuth();
+  const salesOnly = isTenantContextActive() && profile?.role === 'user';
   const { showToast } = useToast();
   const now = useCurrentTime();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  const visibleItems = navItems.filter(item => !item.adminOnly || isAdmin);
+  const visibleItems = navItems.filter(item => salesOnly
+    ? item.page === 'sales'
+    : !item.adminOnly || isAdmin);
 
   const handleSignOut = async () => {
     await signOut();
@@ -130,7 +134,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                   {profile?.name || 'User'}
                 </p>
                 <p className="truncate text-[11px] text-ink-400 capitalize mt-0.5">
-                  {profile?.role === 'user' ? 'User' : profile?.role || 'User'}
+                  {profile?.role === 'user' ? 'Staff' : profile?.role || 'User'}
                 </p>
               </div>
             </div>
@@ -191,7 +195,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                       }`}
                     >
                       <span className="h-1 w-1 rounded-full bg-current" />
-                      {isAdmin ? 'Administrator' : profile?.role === 'user' ? 'User' : 'Owner'}
+                      {isAdmin ? 'Administrator' : profile?.role === 'user' ? 'Sales staff' : 'Owner'}
                     </span>
                   </div>
                   <button

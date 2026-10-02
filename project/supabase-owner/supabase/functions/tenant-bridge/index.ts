@@ -1,13 +1,21 @@
 type Json = Record<string, unknown>;
 
-const appOrigin = 'https://bolt-six-mauve.vercel.app';
-const allowedOrigins = new Set([appOrigin, 'http://localhost:5173', 'http://127.0.0.1:5173']);
+const defaultAppOrigin = 'https://bolt-six-mauve.vercel.app';
+const normalizeOrigin = (value: string) => {
+  try { return new URL(value).origin; } catch { return ''; }
+};
+const appOrigin = normalizeOrigin(Deno.env.get('TENANT_APP_BASE_URL') || '') || defaultAppOrigin;
+const configuredOrigins = (Deno.env.get('TENANT_APP_ALLOWED_ORIGINS') || '')
+  .split(',').map(value => normalizeOrigin(value.trim())).filter(Boolean);
+const allowedOrigins = new Set([
+  defaultAppOrigin, appOrigin, 'http://localhost:5173', 'http://127.0.0.1:5173', ...configuredOrigins,
+]);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const tenantSlugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const allowedMetrics = new Set(['dashboard', 'products', 'sales', 'purchases', 'stock-movements', 'reports', 'settings', 'other']);
 
 function responseHeaders(request: Request) {
-  const requestOrigin = request.headers.get('Origin') || '';
+  const requestOrigin = normalizeOrigin(request.headers.get('Origin') || '');
   return {
     'Access-Control-Allow-Origin': allowedOrigins.has(requestOrigin) ? requestOrigin : appOrigin,
     'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, x-tenant-id',
@@ -39,6 +47,7 @@ function readKeys(raw: string | undefined): Json | null {
 }
 
 Deno.serve(async request => {
+  try {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: responseHeaders(request) });
   if (request.method !== 'POST') return reply(request, { error: 'Method not allowed' }, 405);
 
@@ -252,4 +261,8 @@ Deno.serve(async request => {
   }
 
   return reply(request, { error: 'Unsupported tenant bridge action' }, 400);
+  } catch (error) {
+    console.error('tenant-bridge request failed', error instanceof Error ? error.message : 'Unknown error');
+    return reply(request, { error: 'Owner support service encountered a temporary error' }, 502);
+  }
 });

@@ -1,14 +1,18 @@
-import { useState, FormEvent } from 'react';
+import { FormEvent, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { isTenantContextActive, supabase } from '@/lib/supabase';
-import { Building2, Lock, Mail, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Building2, Lock, Mail, Loader2, Eye, EyeOff, UserRoundPlus } from 'lucide-react';
 
 export function Login() {
-  const { signIn } = useAuth();
+  const { signIn, signUp, signOut } = useAuth();
   const { showToast } = useToast();
+  const tenantMode = isTenantContextActive();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [registerMode, setRegisterMode] = useState(false);
+  const [notice, setNotice] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
@@ -16,9 +20,63 @@ export function Login() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await signIn(email, password);
-    if (error) showToast(error, 'error');
-    else showToast('Welcome back!', 'success');
+    const { error } = await signIn(email.trim().toLowerCase(), password);
+    if (error) {
+      showToast(error, 'error');
+      setLoading(false);
+      return;
+    }
+
+    if (tenantMode) {
+      const { data: membershipResult, error: membershipError } = await supabase.rpc('get_current_tenant_membership');
+      if (membershipError) {
+        await signOut();
+        showToast('Could not verify your business access. Please try again.', 'error');
+        setLoading(false);
+        return;
+      }
+      const membership = Array.isArray(membershipResult) ? membershipResult[0] : membershipResult;
+      if (!membership) {
+        const { data: requestStatus, error: requestError } = await supabase.rpc('request_tenant_staff_registration');
+        await signOut();
+        if (requestError) showToast(requestError.message, 'error');
+        else if (requestStatus === 'active') showToast('Your account is active. Sign in again to continue.', 'info');
+        else setNotice('Your employee access request is waiting for administrator approval. You can sign in after it is approved.');
+        setLoading(false);
+        return;
+      }
+    }
+
+    showToast('Welcome back!', 'success');
+    setLoading(false);
+  };
+
+  const handleRegister = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!tenantMode) return;
+    setLoading(true);
+    setNotice('');
+    const { error, hasSession } = await signUp(email.trim().toLowerCase(), password, fullName.trim());
+    if (error) {
+      showToast(error, 'error');
+      setLoading(false);
+      return;
+    }
+
+    if (hasSession) {
+      const { error: requestError } = await supabase.rpc('request_tenant_staff_registration');
+      await signOut();
+      if (requestError) {
+        showToast(requestError.message, 'error');
+        setLoading(false);
+        return;
+      }
+      setNotice('Registration submitted. Your business administrator must approve your employee access before you can use the sales screen.');
+    } else {
+      setNotice('Account created. Verify your email, then sign in here. Your employee access request will be sent for administrator approval.');
+    }
+    setRegisterMode(false);
+    setPassword('');
     setLoading(false);
   };
 
@@ -49,7 +107,24 @@ export function Login() {
         </div>
 
         <div className="w-full rounded-md border border-ink-100 bg-paper p-8 shadow-xs">
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <h2 className="mb-5 font-display text-lg font-semibold text-ink-900">
+            {registerMode ? 'Employee registration' : 'Sign in'}
+          </h2>
+          <form onSubmit={registerMode ? handleRegister : handleSubmit} className="space-y-5">
+            {registerMode && (
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-ink-700">Full name</label>
+                <input
+                  type="text"
+                  required
+                  autoComplete="name"
+                  value={fullName}
+                  onChange={e => setFullName(e.target.value)}
+                  className="h-10 w-full rounded-sm border border-ink-200 bg-paper px-3 py-2 text-sm text-ink-900 outline-none focus:border-accent-500"
+                  placeholder="Your name"
+                />
+              </div>
+            )}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink-700">Email</label>
               <div className="relative">
@@ -57,10 +132,11 @@ export function Login() {
                 <input
                   type="email"
                   required
+                  autoComplete="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  className="w-full rounded-sm border py-2 pl-10 pr-4 text-sm text-ink-900 placeholder-ink-400 outline-none transition-colors h-10 border-ink-200 bg-paper focus:border-accent-500"
-                  placeholder="admin@business.com"
+                  className="h-10 w-full rounded-sm border border-ink-200 bg-paper py-2 pl-10 pr-4 text-sm text-ink-900 outline-none focus:border-accent-500"
+                  placeholder="you@business.com"
                 />
               </div>
             </div>
@@ -68,13 +144,13 @@ export function Login() {
             <div>
               <div className="mb-1.5 flex items-center justify-between">
                 <label className="block text-sm font-medium text-ink-700">Password</label>
-                {isTenantContextActive() && <button
+                {!registerMode && tenantMode && <button
                   type="button"
                   onClick={handlePasswordRecovery}
                   disabled={loading || recoveryLoading}
                   className="text-xs font-medium text-accent-700 hover:text-accent-900 disabled:opacity-50"
                 >
-                  {recoveryLoading ? 'Sending link…' : 'Forgot password?'}
+                  {recoveryLoading ? 'Sending link...' : 'Forgot password?'}
                 </button>}
               </div>
               <div className="relative">
@@ -82,15 +158,18 @@ export function Login() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  minLength={registerMode ? 8 : undefined}
+                  autoComplete={registerMode ? 'new-password' : 'current-password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  className="w-full rounded-sm border py-2 pl-10 pr-10 text-sm text-ink-900 placeholder-ink-400 outline-none transition-colors h-10 border-ink-200 bg-paper focus:border-accent-500"
-                  placeholder="••••••••"
+                  className="h-10 w-full rounded-sm border border-ink-200 bg-paper py-2 pl-10 pr-10 text-sm text-ink-900 outline-none focus:border-accent-500"
+                  placeholder={registerMode ? 'At least 8 characters' : '••••••••'}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-700"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -102,20 +181,31 @@ export function Login() {
               disabled={loading}
               className="flex h-10 w-full items-center justify-center gap-2 rounded-sm bg-accent-500 text-sm font-semibold text-white transition-colors hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loading ? (
-                <>
-                  <Loader2 className="animate-spin" size={18} />
-                  Signing in...
-                </>
-              ) : (
-                'Sign In'
-              )}
+              {loading ? <><Loader2 className="animate-spin" size={18} /> Please wait...</> : registerMode
+                ? <><UserRoundPlus size={18} /> Request employee access</>
+                : 'Sign In'}
             </button>
           </form>
+
+          {notice && <p role="status" className="mt-4 rounded-sm border border-accent-100 bg-accent-50 px-3 py-3 text-sm leading-6 text-accent-900">{notice}</p>}
+          {tenantMode && (
+            <div className="mt-5 border-t border-ink-100 pt-4 text-center">
+              <p className="text-xs leading-5 text-ink-500">
+                Employee accounts can record sales and access their own receipts. An administrator must approve registration.
+              </p>
+              <button
+                type="button"
+                onClick={() => { setRegisterMode(value => !value); setNotice(''); }}
+                className="mt-3 text-sm font-medium text-accent-700 hover:text-accent-900"
+              >
+                {registerMode ? 'Back to sign in' : 'Employee? Register here'}
+              </button>
+            </div>
+          )}
         </div>
 
         <p className="mt-6 text-center text-xs text-ink-500">
-          Contact your administrator for account access
+          {tenantMode ? 'Need administrator access? Contact your business administrator.' : 'Contact your administrator for account access'}
         </p>
       </div>
     </div>

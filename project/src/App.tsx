@@ -24,6 +24,7 @@ import { invokeTenantOwnerBridge } from '@/lib/tenantOwnerBridge';
 
 function AppContent() {
   const { session, profile, loading, isAdmin } = useAuth();
+  const salesOnly = isTenantContextActive() && profile?.role === 'user';
   const [passwordSetupPending, setPasswordSetupPending] = useState(
     () => new URLSearchParams(window.location.search).get('set_password') === '1',
   );
@@ -34,6 +35,13 @@ function AppContent() {
     window.addEventListener('hashchange', syncPage);
     return () => window.removeEventListener('hashchange', syncPage);
   }, []);
+
+  useEffect(() => {
+    if (salesOnly && currentPage !== 'sales') {
+      setCurrentPage('sales');
+      window.location.hash = '/sales';
+    }
+  }, [salesOnly, currentPage]);
 
   useEffect(() => {
     if (!session || !profile || !isTenantContextActive()) return;
@@ -70,6 +78,10 @@ function AppContent() {
 
   if (!session || !profile) {
     return <Login />;
+  }
+
+  if (salesOnly) {
+    return <Layout currentPage="sales" onNavigate={navigate}><Sales /></Layout>;
   }
 
   const renderPage = () => {

@@ -78,7 +78,7 @@ Configure **Automation & controls → Inbound document routing** with a Meta `ph
 
 ## Staff roles, audit, and live updates
 
-Apply `20261002000000_staff_access_realtime_identity_documents.sql` to each existing tenant project. It converts former read-only tenant memberships to the restricted `user` role, adds the five-active-user limit, private employee ID uploads, PII-minimized audit snapshots, and private tenant-authorized realtime invalidation channels. Deploy the updated `admin-users` function after the migration:
+Apply `20261002000000_staff_access_realtime_identity_documents.sql` and `20261002010000_employee_registration_sales_receipts.sql` to each existing tenant project. The migrations convert former read-only tenant memberships to the restricted `user` role, add the five-active-user limit, private employee ID uploads, PII-minimized audit snapshots, employee self-registration requests for admin approval, sales-only staff data access, secure server-priced sale recording, and saved receipt snapshots. Deploy the updated `admin-users` function and provisioning bundle after the migrations:
 
 ```sh
 supabase db push --workdir supabase
@@ -94,7 +94,9 @@ Future provisioned tenant projects receive this migration from the embedded migr
 npm run owner:embed-migrations
 ```
 
-Tenant administrators keep full access. They can invite or add up to five active staff users; staff can view permitted operational data and record sales, while settings, staff management, automation controls, salary data, and audit logs stay administrator-only. Employee email, phone, and national ID duplicates are rejected within a tenant; similar email addresses prompt a spelling review. ID images are private and administrator-only.
+Tenant administrators keep full access. Employees can create an account from the tenant sign-in page, verify their email, and request access. An administrator approves the request; the account is always assigned the restricted `user` role, limited to the Sales page, recording sales, and viewing its own receipts. Each tenant can have at most five active staff users. Receipt details are snapshotted to the sales ledger and can be printed or saved as PDF. Employee email, phone, and national ID duplicates are rejected within a tenant; similar email addresses prompt a spelling review. ID images are private and administrator-only.
+
+For an existing shared tenant project, a Supabase Owner or Administrator must enable email signups in **Authentication â†’ Sign-in / Providers**. Provisioning previously set `disable_signup=true`; future provisioned tenants receive the enabled setting after the updated `owner-provisioning` function is deployed. New accounts still have no tenant access until an administrator approves their request. Keep email verification enabled if you want Supabase to verify employee email addresses before they request access.
 
 The Paddle fallback expects the self-hosted OCR adapter to accept the file bytes with their MIME type and return JSON shaped as `{ "text": "...", "lines": [{ "description": "...", "supplier_sku": null, "quantity": null, "unit": null, "unit_price": null, "confidence": 0.8, "source_page": 1, "source_bbox": null }], "structured": {} }`. Review and post every extracted receipt manually in the tenant app. Daily reconciliation is scheduled at 18:00 in each tenant's configured timezone when `pg_cron` is available; administrators can also run it from **Automation & controls**.
 

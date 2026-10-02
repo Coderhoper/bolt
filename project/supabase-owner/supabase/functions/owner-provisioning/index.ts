@@ -469,7 +469,10 @@ Deno.serve(async request => {
         `/projects/${encodeURIComponent(ref)}/config/auth`, 'PATCH', {
           site_url: appBase,
           uri_allow_list: allowList,
-          disable_signup: true,
+          // Public signups create no tenant membership. The tenant database
+          // holds each new account in a pending employee request until an
+          // administrator approves it as the fixed, sales-only `user` role.
+          disable_signup: false,
         });
       if (!authResponse.ok) return await managementFailure(authResponse);
       await bodyOf(authResponse);

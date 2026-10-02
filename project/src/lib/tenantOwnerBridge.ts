@@ -9,16 +9,21 @@ export async function invokeTenantOwnerBridge<T = Record<string, unknown>>(body:
   const { data, error: sessionError } = await supabase.auth.getSession();
   if (sessionError || !data.session?.access_token) throw new Error('Sign in again to use tenant support.');
 
-  const response = await fetch(`${ownerUrl}/functions/v1/tenant-bridge`, {
-    method: 'POST',
-    headers: {
-      apikey: ownerPublicKey,
-      Authorization: `Bearer ${data.session.access_token}`,
-      'Content-Type': 'application/json',
-      'x-tenant-id': getActiveTenantId(),
-    },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${ownerUrl}/functions/v1/tenant-bridge`, {
+      method: 'POST',
+      headers: {
+        apikey: ownerPublicKey,
+        Authorization: `Bearer ${data.session.access_token}`,
+        'Content-Type': 'application/json',
+        'x-tenant-id': getActiveTenantId(),
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error(`Could not reach Owner support from ${window.location.origin}. Confirm that tenant-bridge is deployed and this site origin is allowed in the Owner project.`);
+  }
   let result: Record<string, unknown> = {};
   try { result = await response.json() as Record<string, unknown>; } catch { /* report a stable error below */ }
   if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'Owner messaging request failed.');

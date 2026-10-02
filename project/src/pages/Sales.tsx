@@ -1,29 +1,43 @@
 import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createPortal } from 'react-dom';
+import { isTenantContextActive, supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeRefresh';
 import { useToast } from '@/components/ui/Toast';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
 import { logAudit } from '@/lib/audit';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
-  ShoppingCart, Plus, Search, Eye, X,
+  ShoppingCart, Plus, Search, Eye, X, Printer,
 } from 'lucide-react';
-import type { Sale, Product, SaleItem } from '@/types';
+import type { Sale, Product } from '@/types';
+
+type SalesProduct = Pick<Product, 'id' | 'name' | 'catalog_variant_id' | 'catalog_sku' | 'unit' | 'selling_price' | 'current_stock'> & {
+  buying_price?: number;
+};
+
+interface SaleReceiptData {
+  business: { name: string; address: string | null; phone: string | null; email: string | null; currency: string };
+  sale: { id: string; number: string; date: string; customer: string; payment_method: string; total: number; created_at: string };
+  items: { name: string; sku?: string | null; quantity: number; unit_price: number; total: number }[];
+}
 
 export function Sales() {
   const { isAdmin, canRecordSales } = useAuth();
+  const tenantMode = isTenantContextActive();
+  const salesOnly = tenantMode && !isAdmin && canRecordSales;
   const canCreateSale = isAdmin || canRecordSales;
   const { showToast } = useToast();
   const [sales, setSales] = useState<Sale[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<SalesProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [viewSale, setViewSale] = useState<Sale | null>(null);
-  const [viewItems, setViewItems] = useState<SaleItem[]>([]);
+  const [receiptData, setReceiptData] = useState<SaleReceiptData | null>(null);
+  const [viewItems, setViewItems] = useState<SaleReceiptData['items']>([]);
   const [saleItems, setSaleItems] = useState<{ product_id: string; quantity: string }[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
@@ -33,15 +47,20 @@ export function Sales() {
 
   const loadData = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
+    const salesQuery = salesOnly
+      ? supabase.rpc('get_my_sales')
+      : supabase.from('sales').select('*').order('created_at', { ascending: false });
     const [{ data: s }, { data: p }] = await Promise.all([
-      supabase.from('sales').select('*').order('created_at', { ascending: false }),
-      supabase.from('products').select('*').eq('status', 'active')
-        .not('catalog_variant_id', 'is', null).order('name'),
+      salesQuery,
+      tenantMode
+        ? supabase.rpc('get_sale_catalog')
+        : supabase.from('products').select('*').eq('status', 'active')
+          .not('catalog_variant_id', 'is', null).order('name'),
     ]);
-    setSales(s || []);
-    setProducts(p || []);
+    setSales((s || []) as Sale[]);
+    setProducts((p || []) as SalesProduct[]);
     if (!quiet) setLoading(false);
-  }, []);
+  }, [salesOnly, tenantMode]);
 
   useEffect(() => { loadData(); }, [loadData]);
   useRealtimeRefresh(loadData);
@@ -76,7 +95,7 @@ export function Sales() {
     return saleItems.reduce((sum, item) => {
       const qty = Number(item.quantity) || 0;
       const product = products.find(p => p.id === item.product_id);
-      if (!product) return sum;
+      if (!product || typeof product.buying_price !== 'number') return sum;
       return sum + qty * (product.selling_price - product.buying_price);
     }, 0);
   };
@@ -125,19 +144,87 @@ export function Sales() {
       await logAudit('CREATE_SALE', 'sale', data, `Created sale with ${saleItems.length} items`);
       showToast('Sale recorded successfully', 'success');
       setModalOpen(false);
-      loadData();
+      await loadData(true);
+      if (salesOnly) {
+        await viewSaleDetails({ id: data } as Sale);
+      } else {
+        const { data: savedSale } = await supabase.from('sales').select('*').eq('id', data).maybeSingle();
+        if (savedSale) await viewSaleDetails(savedSale as Sale);
+        else showToast('Sale saved. Refresh the list to open its receipt.', 'info');
+      }
     }
     setSaving(false);
   };
 
   const viewSaleDetails = async (sale: Sale) => {
-    setViewSale(sale);
-    const { data } = await supabase
-      .from('sale_items')
-      .select('*, product:products(*)')
-      .eq('sale_id', sale.id);
-    setViewItems(data || []);
+    if (tenantMode) {
+      const { data, error } = await supabase.rpc('get_sale_receipt', { p_sale_id: sale.id });
+      if (error || !data) {
+        showToast(error?.message || 'Could not load the saved receipt', 'error');
+        return;
+      }
+      const receipt = data as SaleReceiptData;
+      setReceiptData(receipt);
+      setViewItems(receipt.items || []);
+      if (salesOnly) {
+        setViewSale({
+          id: receipt.sale.id,
+          sale_number: receipt.sale.number,
+          customer_name: receipt.sale.customer,
+          sale_date: receipt.sale.date,
+          payment_method: receipt.sale.payment_method as Sale['payment_method'],
+          total_amount: receipt.sale.total,
+          total_cost: 0,
+          total_profit: 0,
+          note: null,
+          created_by: null,
+          created_at: receipt.sale.created_at,
+        });
+      } else {
+        setViewSale(sale);
+      }
+    } else {
+      const [{ data: items }, { data: business }] = await Promise.all([
+        supabase.from('sale_items').select('id,quantity,selling_price,total,product_name,product:products(name,catalog_sku)')
+          .eq('sale_id', sale.id),
+        supabase.from('system_settings').select('business_name,business_address,business_phone,business_email,currency').maybeSingle(),
+      ]);
+      const legacyItems = (items || []) as unknown as {
+        quantity: number; selling_price: number; total: number; product_name: string | null;
+        product: { name: string; catalog_sku: string | null } | null;
+      }[];
+      const legacyReceipt: SaleReceiptData = {
+        business: {
+          name: business?.business_name || 'Business',
+          address: business?.business_address || null,
+          phone: business?.business_phone || null,
+          email: business?.business_email || null,
+          currency: business?.currency || 'KSh',
+        },
+        sale: {
+          id: sale.id,
+          number: sale.sale_number || sale.id,
+          date: sale.sale_date,
+          customer: sale.customer_name || 'Walk-in',
+          payment_method: sale.payment_method,
+          total: sale.total_amount,
+          created_at: sale.created_at,
+        },
+        items: legacyItems.map(item => ({
+          name: item.product_name || item.product?.name || 'Item',
+          sku: item.product?.catalog_sku,
+          quantity: item.quantity,
+          unit_price: item.selling_price,
+          total: item.total,
+        })),
+      };
+      setReceiptData(legacyReceipt);
+      setViewItems(legacyReceipt.items);
+    }
+    if (!tenantMode) setViewSale(sale);
   };
+
+  const printReceipt = () => window.print();
 
   if (loading) {
     return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent-500" /></div>;
@@ -147,7 +234,7 @@ export function Sales() {
     <div>
       <PageHeader
         title="Sales"
-        subtitle={`${sales.length} sales recorded`}
+        subtitle={salesOnly ? `${sales.length} of your sales · receipts are saved automatically` : `${sales.length} sales recorded`}
         actions={canCreateSale && (
           <button onClick={openAdd} disabled={!products.length} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 disabled:opacity-50 transition-colors">
             <Plus size={18} /> New Sale
@@ -168,7 +255,7 @@ export function Sales() {
 
       {filtered.length === 0 ? (
         <div className="rounded-md bg-paper shadow-xs border border-ink-100">
-          <EmptyState icon={ShoppingCart} title="No sales recorded" description={products.length ? "Record your first sale to start tracking revenue." : "Add catalogue products to inventory before recording a sale."} action={canCreateSale && (
+          <EmptyState icon={ShoppingCart} title={salesOnly ? 'No sales recorded by you yet' : 'No sales recorded'} description={products.length ? "Record your first sale to start tracking revenue." : "Add catalogue items to inventory before recording a sale."} action={canCreateSale && (
             <button onClick={openAdd} disabled={!products.length} className="flex items-center gap-2 rounded-sm bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700 disabled:opacity-50">
               <Plus size={18} /> New Sale
             </button>
@@ -185,7 +272,7 @@ export function Sales() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Customer</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-ink-600 uppercase tracking-wide">Payment</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Amount</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Profit</th>
+                  {!salesOnly && <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Profit</th>}
                   <th className="px-4 py-3 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
@@ -197,7 +284,7 @@ export function Sales() {
                     <td className="px-4 py-3 text-sm text-ink-600">{sale.customer_name || 'Walk-in'}</td>
                     <td className="px-4 py-3 text-sm text-ink-600 capitalize">{sale.payment_method}</td>
                     <td className="px-4 py-3 text-sm font-semibold text-ink-900 text-right" data-numeric>{formatCurrency(sale.total_amount)}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-accent-500 text-right" data-numeric>{formatCurrency(sale.total_profit)}</td>
+                    {!salesOnly && <td className="px-4 py-3 text-sm font-medium text-accent-500 text-right" data-numeric>{formatCurrency(sale.total_profit)}</td>}
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => viewSaleDetails(sale)} className="rounded-sm p-1.5 text-ink-400 hover:bg-accent-50 hover:text-accent-500" aria-label={`View sale ${sale.sale_number || sale.id}`}>
@@ -303,15 +390,15 @@ export function Sales() {
                 <div className="px-4 py-8 text-center text-sm text-ink-400">No items added. Select a catalogue product to start.</div>
               )}
             </div>
-            <div className="flex items-center justify-between border-t border-ink-200 px-4 py-3 bg-ink-50">
+            <div className={`flex items-center border-t border-ink-200 px-4 py-3 bg-ink-50 ${salesOnly ? 'justify-end' : 'justify-between'}`}>
               <div>
                 <span className="text-sm font-semibold text-ink-900">Total: </span>
                 <span className="text-lg font-bold text-accent-500" data-numeric>{formatCurrency(calculateTotal())}</span>
               </div>
-              <div>
+              {!salesOnly && <div>
                 <span className="text-sm font-semibold text-accent-500">Expected Profit: </span>
                 <span className="text-lg font-bold text-accent-500" data-numeric>{formatCurrency(calculateProfit())}</span>
-              </div>
+              </div>}
             </div>
           </div>
 
@@ -345,10 +432,20 @@ export function Sales() {
         </div>
       </Modal>
 
-      <Modal open={!!viewSale} onClose={() => setViewSale(null)} title={`Sale ${viewSale?.sale_number || ''}`} size="lg">
+      <Modal open={!!viewSale} onClose={() => { setViewSale(null); setReceiptData(null); }} title={`Receipt ${receiptData?.sale.number || viewSale?.sale_number || ''}`} size="lg">
         {viewSale && (
           <div className="space-y-4">
+            {receiptData && <div className="flex items-center justify-between gap-3 rounded-sm bg-accent-50 px-4 py-3">
+              <p className="text-sm text-accent-900">Digital receipt saved with this sale.</p>
+              <button onClick={printReceipt} className="no-print flex items-center gap-2 rounded-sm bg-accent-500 px-3 py-2 text-sm font-medium text-white hover:bg-accent-700">
+                <Printer size={16} /> Print / Save PDF
+              </button>
+            </div>}
             <div className="grid grid-cols-2 gap-4">
+              {receiptData && <div className="col-span-2 rounded-lg bg-ink-50 p-3">
+                <p className="text-xs text-ink-500">Business</p>
+                <p className="text-sm font-medium text-ink-900">{receiptData.business.name}</p>
+              </div>}
               <div className="rounded-lg bg-ink-50 p-3">
                 <p className="text-xs text-ink-500">Date</p>
                 <p className="text-sm font-medium text-ink-900" data-numeric>{formatDate(viewSale.sale_date)}</p>
@@ -361,10 +458,10 @@ export function Sales() {
                 <p className="text-xs text-ink-500">Payment Method</p>
                 <p className="text-sm font-medium text-ink-900 capitalize">{viewSale.payment_method}</p>
               </div>
-              <div className="rounded-lg bg-ink-50 p-3">
+              {!salesOnly && <div className="rounded-lg bg-ink-50 p-3">
                 <p className="text-xs text-ink-500">Note</p>
                 <p className="text-sm font-medium text-ink-900">{viewSale.note || '—'}</p>
-              </div>
+              </div>}
             </div>
             <div className="overflow-hidden rounded-md border border-ink-200">
               <table className="w-full">
@@ -374,25 +471,22 @@ export function Sales() {
                     <th className="px-3 py-2 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Qty</th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Price</th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Total</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-ink-600 uppercase tracking-wide">Profit</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ink-100">
-                  {viewItems.map(item => (
-                    <tr key={item.id}>
-                      <td className="px-3 py-2 text-sm text-ink-900">{item.product?.name || '—'}</td>
+                  {viewItems.map((item, index) => (
+                    <tr key={`${item.sku || item.name}-${index}`}>
+                      <td className="px-3 py-2 text-sm text-ink-900">{item.name}</td>
                       <td className="px-3 py-2 text-sm text-ink-600 text-right" data-numeric>{item.quantity}</td>
-                      <td className="px-3 py-2 text-sm text-ink-600 text-right" data-numeric>{formatCurrency(item.selling_price)}</td>
-                      <td className="px-3 py-2 text-sm font-medium text-ink-900 text-right" data-numeric>{formatCurrency(item.total)}</td>
-                      <td className="px-3 py-2 text-sm text-accent-500 text-right" data-numeric>{formatCurrency(item.profit)}</td>
+                      <td className="px-3 py-2 text-sm text-ink-600 text-right" data-numeric>{formatCurrency(item.unit_price, receiptData?.business.currency)}</td>
+                      <td className="px-3 py-2 text-sm font-medium text-ink-900 text-right" data-numeric>{formatCurrency(item.total, receiptData?.business.currency)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot className="bg-ink-50">
                   <tr>
                     <td colSpan={3} className="px-3 py-2 text-sm font-semibold text-ink-900 text-right">Total</td>
-                    <td className="px-3 py-2 text-sm font-bold text-ink-900 text-right" data-numeric>{formatCurrency(viewSale.total_amount)}</td>
-                    <td className="px-3 py-2 text-sm font-bold text-accent-500 text-right" data-numeric>{formatCurrency(viewSale.total_profit)}</td>
+                    <td className="px-3 py-2 text-sm font-bold text-ink-900 text-right" data-numeric>{formatCurrency(viewSale.total_amount, receiptData?.business.currency)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -400,6 +494,39 @@ export function Sales() {
           </div>
         )}
       </Modal>
+
+      {receiptData && createPortal(
+        <article id="sale-receipt-print" aria-hidden="true">
+          <header className="receipt-center">
+            <h1>{receiptData.business.name}</h1>
+            {receiptData.business.address && <p>{receiptData.business.address}</p>}
+            {receiptData.business.phone && <p>{receiptData.business.phone}</p>}
+            {receiptData.business.email && <p>{receiptData.business.email}</p>}
+            <h2>SALES RECEIPT</h2>
+          </header>
+          <dl className="receipt-meta">
+            <dt>Receipt</dt><dd>{receiptData.sale.number}</dd>
+            <dt>Date</dt><dd>{formatDate(receiptData.sale.date)}</dd>
+            <dt>Issued</dt><dd>{formatDateTime(receiptData.sale.created_at)}</dd>
+            <dt>Customer</dt><dd>{receiptData.sale.customer}</dd>
+            <dt>Payment</dt><dd>{receiptData.sale.payment_method}</dd>
+          </dl>
+          <table className="receipt-table">
+            <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
+            <tbody>{receiptData.items.map((item, index) => (
+              <tr key={`${item.sku || item.name}-${index}`}>
+                <td>{item.name}{item.sku ? <small>{item.sku}</small> : null}</td>
+                <td>{item.quantity}</td>
+                <td>{formatCurrency(item.unit_price, receiptData.business.currency)}</td>
+                <td>{formatCurrency(item.total, receiptData.business.currency)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+          <p className="receipt-total"><span>Total paid</span><strong>{formatCurrency(receiptData.sale.total, receiptData.business.currency)}</strong></p>
+          <p className="receipt-center">Thank you for your business.</p>
+        </article>,
+        document.body,
+      )}
 
     </div>
   );

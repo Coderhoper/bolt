@@ -11,29 +11,43 @@ import {
 } from 'lucide-react';
 import type { SystemSettings, Profile } from '@/types';
 
+interface StaffRegistrationRequest {
+  user_id: string;
+  full_name: string;
+  email: string;
+  requested_at: string;
+}
+
 export function Settings() {
   const { showToast } = useToast();
   const tenantMode = isTenantContextActive();
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [staffRequests, setStaffRequests] = useState<StaffRegistrationRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'business' | 'users' | 'email'>('business');
   const [newRecipient, setNewRecipient] = useState('');
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'owner' });
+  const [reviewingUserId, setReviewingUserId] = useState<string | null>(null);
 
   const loadData = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
-    const [{ data: s }, { data: userData, error: usersError }] = await Promise.all([
+    const requestsPromise = tenantMode
+      ? supabase.rpc('list_tenant_staff_registration_requests')
+      : Promise.resolve({ data: [] as StaffRegistrationRequest[], error: null });
+    const [{ data: s }, { data: userData, error: usersError }, { data: requestsData }] = await Promise.all([
       supabase.from('system_settings').select('*').maybeSingle(),
       supabase.functions.invoke('admin-users', { body: { action: 'list' } }),
+      requestsPromise,
     ]);
     setSettings(s as SystemSettings || null);
     const profilesWithEmail: Profile[] = usersError ? [] : (userData?.profiles || []);
     setProfiles(profilesWithEmail);
+    setStaffRequests((requestsData || []) as StaffRegistrationRequest[]);
     if (!quiet) setLoading(false);
-  }, []);
+  }, [tenantMode]);
 
   useEffect(() => { loadData(); }, [loadData]);
   useRealtimeRefresh(loadData);
@@ -126,6 +140,23 @@ export function Settings() {
     await logAudit('UPDATE_USER_STATUS', 'profile', profile.id, `${newStatus === 'active' ? 'Activated' : 'Deactivated'} user: ${profile.name}`);
     showToast(`User ${newStatus === 'active' ? 'activated' : 'deactivated'}`, 'success');
     loadData();
+  };
+
+  const reviewStaffRequest = async (userId: string, decision: 'approve' | 'reject') => {
+    setReviewingUserId(userId);
+    const { error } = await supabase.rpc('admin_review_tenant_staff_registration', {
+      p_user_id: userId,
+      p_decision: decision,
+    });
+    if (error) {
+      showToast(error.message, 'error');
+    } else {
+      await logAudit(decision === 'approve' ? 'APPROVE_STAFF_REGISTRATION' : 'REJECT_STAFF_REGISTRATION', 'tenant_membership', userId,
+        `${decision === 'approve' ? 'Approved' : 'Rejected'} employee registration request`);
+      showToast(decision === 'approve' ? 'Employee access approved' : 'Registration request rejected', 'success');
+      await loadData(true);
+    }
+    setReviewingUserId(null);
   };
 
   if (loading) {
@@ -236,6 +267,43 @@ export function Settings() {
             </button>
           </div>
 
+          {tenantMode && (
+            <section className="mb-5 overflow-hidden rounded-md border border-ink-100 bg-paper shadow-xs">
+              <div className="border-b border-ink-100 px-5 py-4">
+                <h2 className="font-display text-base font-semibold text-ink-900">Employee registration requests</h2>
+                <p className="mt-1 text-sm text-ink-500">Approve employees to give them sales entry and access to their own receipts.</p>
+              </div>
+              {staffRequests.length ? (
+                <div className="divide-y divide-ink-100">
+                  {staffRequests.map(request => (
+                    <div key={request.user_id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-ink-900">{request.full_name}</p>
+                        <p className="truncate text-sm text-ink-600">{request.email}</p>
+                        <p className="mt-1 text-xs text-ink-400">Requested {new Date(request.requested_at).toLocaleString()}</p>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          onClick={() => reviewStaffRequest(request.user_id, 'reject')}
+                          disabled={reviewingUserId === request.user_id}
+                          className="rounded-sm border border-ink-200 px-3 py-2 text-sm font-medium text-ink-600 hover:bg-ink-50 disabled:opacity-50"
+                        >Reject</button>
+                        <button
+                          onClick={() => reviewStaffRequest(request.user_id, 'approve')}
+                          disabled={reviewingUserId === request.user_id || activeStaffCount >= 5}
+                          className="rounded-sm bg-accent-500 px-3 py-2 text-sm font-medium text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          title={activeStaffCount >= 5 ? 'Deactivate an existing staff user to free a seat' : undefined}
+                        >Approve</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="px-5 py-5 text-sm text-ink-500">No employee requests are waiting for review.</p>
+              )}
+            </section>
+          )}
+
           <div className="overflow-hidden rounded-md bg-paper shadow-xs border border-ink-100">
             <table className="w-full">
               <thead className="bg-ink-50 border-b border-ink-200">
@@ -336,7 +404,7 @@ export function Settings() {
                       <p className="mt-1 text-xs text-danger">Maximum 3 owners already reached</p>
                     )}
                   </div>}
-                  {tenantMode && <p className="rounded-lg bg-ink-50 p-3 text-sm text-ink-700">User access: record sales and view business data. They cannot change inventory, settings, employee records, purchases or expenses. Your tenant can have up to five active staff users.</p>}
+                  {tenantMode && <p className="rounded-lg bg-ink-50 p-3 text-sm text-ink-700">Staff accounts can record sales and open their own receipts. They cannot access other business pages or records. Your tenant can have up to five active staff users.</p>}
                 </div>
                 <div className="flex justify-end gap-3 px-6 py-4 border-t border-ink-100">
                   <button onClick={() => setShowAddUser(false)} className="rounded-sm px-4 py-2 text-sm font-medium text-ink-600 hover:bg-ink-100">Cancel</button>
