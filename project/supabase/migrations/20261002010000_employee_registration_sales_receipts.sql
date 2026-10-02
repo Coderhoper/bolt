@@ -258,8 +258,8 @@ BEGIN
   RETURN sale_id;
 END;
 $$;
-REVOKE ALL ON FUNCTION public.process_sale(jsonb, text, text, date) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.process_sale(jsonb, text, text, date) TO authenticated;
+REVOKE ALL ON FUNCTION public.process_sale(jsonb, text, text, text, date) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.process_sale(jsonb, text, text, text, date) TO authenticated;
 
 -- Receipt details expose sale prices and names only; totals, items, and sale
 -- number remain in the normal sales ledger as the retained copy.
