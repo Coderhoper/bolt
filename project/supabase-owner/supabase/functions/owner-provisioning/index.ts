@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { tenantMigrations } from './tenantMigrations.ts';
 
-const productionAppBaseUrl = 'https://bolt-six-mauve.vercel.app';
+const productionAppBaseUrl = 'https://bolt-seven-eta.vercel.app';
 const allowedOrigins = new Set([
   productionAppBaseUrl,
   'http://localhost:5173',

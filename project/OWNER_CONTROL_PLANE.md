@@ -47,7 +47,7 @@ Set these secrets on the Owner Supabase project using values from your own Supab
 - `lapdav`: a scoped Supabase Management API personal access token. It needs permission to list organization projects, manage API keys for the shared tenant project, apply database migrations (or run database write queries if the migrations API is unavailable), and update its Auth configuration.
 - `org_slug`: the Supabase organization slug, not a project reference.
 - `tenant_shared_project_ref`: the 20-character reference of the separate shared tenant project you create in that organization. It is not the Owner project or the current general-management project.
-- `TENANT_APP_BASE_URL`: `https://bolt-six-mauve.vercel.app` for the current tenant deployment. This can be omitted while that remains the correct URL.
+- `TENANT_APP_BASE_URL`: `https://bolt-seven-eta.vercel.app` for the current tenant deployment. This can be omitted while that remains the correct URL.
 
 Set the values in the Owner project's Edge Function secrets in the Supabase Dashboard, or use a protected local environment file with the Supabase CLI. Do not put the token in source code, chat, shell history, or a Vite `VITE_*` variable. The **Platform → Check connection** button only verifies organization read access; it does not create or change projects.
 
@@ -75,7 +75,7 @@ The build emits `dist/owner.html` for the owner console and `dist/index.html` fo
 npx supabase functions deploy admin-users --project-ref <tenant-shared-project-ref> --use-api
 ```
 
-Configure SMTP for the shared project's Auth service so administrator and staff invitations can be delivered. Set `TENANT_APP_BASE_URL` as a secret on the shared project's Edge Functions if the production URL differs from `https://bolt-six-mauve.vercel.app`.
+Configure SMTP for the shared project's Auth service so administrator and staff invitations can be delivered. Set `TENANT_APP_BASE_URL` as a secret on the shared project's Edge Functions if the production URL differs from `https://bolt-seven-eta.vercel.app`.
 4. In the Owner console, register the tenant with a unique slug, plan, and the first administrator's email.
 5. Choose **Provision**. The worker reuses the configured project, applies the schema and hardware catalogue migrations once, creates the tenant workspace and administrator membership, configures Auth redirects for `/t/<slug>`, sends the invite, and only then marks the tenant active.
 6. Give the administrator the `/t/<slug>` link. Tenant requests include the resolved tenant ID, while database row policies and tenant-aware foreign keys keep business records separated. Tenant user management checks and changes memberships for the current business only; users shared between businesses keep independent roles and status per membership.

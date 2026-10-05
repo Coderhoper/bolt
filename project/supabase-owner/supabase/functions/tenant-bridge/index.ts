@@ -1,6 +1,6 @@
 type Json = Record<string, unknown>;
 
-const defaultAppOrigin = 'https://bolt-six-mauve.vercel.app';
+const defaultAppOrigin = 'https://bolt-seven-eta.vercel.app';
 const normalizeOrigin = (value: string) => {
   try { return new URL(value).origin; } catch { return ''; }
 };
