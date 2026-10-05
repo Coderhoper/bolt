@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const appBaseUrl = (Deno.env.get('TENANT_APP_BASE_URL') || 'https://bolt-six-mauve.vercel.app').replace(/\/$/, '');
+const appBaseUrl = (Deno.env.get('TENANT_APP_BASE_URL') || 'https://bolt-seven-eta.vercel.app').replace(/\/$/, '');
 const corsHeadersBase = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-tenant-id',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -168,6 +168,19 @@ Deno.serve(async request => {
     let body: Record<string, unknown>;
     try { body = await request.json(); } catch { return json({ error: 'Invalid request body' }, 400, corsOrigin); }
     const action = body.action;
+
+    if (action === 'send-customer-payment-sms') {
+      const paymentId = typeof body.paymentId === 'string' ? body.paymentId : '';
+      if (!uuidPattern.test(paymentId)) return json({ error: 'Payment ID is invalid' }, 400, corsOrigin);
+      const { data: payment, error: paymentError } = await admin.from('payments')
+        .select('id,tenant_id,initiated_by,status')
+        .eq('tenant_id', tenantId).eq('id', paymentId).maybeSingle();
+      if (paymentError || !payment) return json({ error: 'Payment could not be found' }, 404, corsOrigin);
+      if (role !== 'admin' && payment.initiated_by !== user.id) return json({ error: 'Payment access denied' }, 403, corsOrigin);
+      if (payment.status !== 'SUCCESS') return json({ error: 'Only confirmed payments can send customer SMS' }, 409, corsOrigin);
+      const result = await sendCustomerPaymentSms(admin, tenantId, paymentId);
+      return json(result, 200, corsOrigin);
+    }
 
     if (action === 'get-settings') {
       const [{ data: channels, error: channelError }, { data: credentials }] = await Promise.all([
@@ -465,7 +478,90 @@ async function handleStkCallback(request: Request, admin: SupabaseClient, origin
   const {error}=await admin.rpc('service_apply_mpesa_result',{p_tenant_id:tenantId,p_token_hash:tokenHash,p_success:success,p_provider_ref:checkoutId,
     p_receipt:receipt,p_phone:phone===undefined?'':String(phone),p_failure:typeof callback?.ResultDesc==='string'?callback.ResultDesc:'M-Pesa payment failed'});
   if (webhook?.id) await admin.from('payment_webhook_events').update({processed:!error,error:error?String(error.message).slice(0,500):null}).eq('id',webhook.id);
+  if (success && !error) {
+    try { await sendCustomerPaymentSms(admin, tenantId, paymentId); }
+    catch (smsError) { console.error('Customer payment SMS dispatch failed', smsError); }
+  }
   return new Response('OK',{status:200});
+}
+
+async function sendCustomerPaymentSms(admin: SupabaseClient, tenantId: string, paymentId: string) {
+  const { data: queued, error: queueError } = await admin.from('customer_sms_outbox')
+    .select('id,customer_id,payment_id,recipient_phone,status,attempts')
+    .eq('tenant_id', tenantId).eq('payment_id', paymentId).in('status', ['QUEUED', 'FAILED'])
+    .order('created_at', { ascending: true }).limit(1).maybeSingle();
+  if (queueError) throw new Error('Could not load the customer SMS queue');
+  if (!queued) return { sent: false, skipped: true, reason: 'No customer SMS is queued for this payment' };
+  const username = Deno.env.get('AFRICASTALKING_USERNAME')?.trim();
+  const apiKey = Deno.env.get('AFRICASTALKING_API_KEY')?.trim();
+  if (!username || !apiKey) throw new Error('Africa’s Talking SMS is not configured in Supabase secrets');
+
+  const [{ data: payment }, { data: customer }, { data: settings }, { data: business }] = await Promise.all([
+    admin.from('payments').select('amount,channel,status,sale_id').eq('tenant_id', tenantId).eq('id', paymentId).maybeSingle(),
+    admin.from('customers').select('name,phone,sms_opt_in,loyalty_points').eq('tenant_id', tenantId).eq('id', queued.customer_id).maybeSingle(),
+    admin.from('system_settings').select('business_name,loyalty_enabled,sms_balance_notifications_enabled').eq('tenant_id', tenantId).maybeSingle(),
+    admin.from('business_tenants').select('name').eq('id', tenantId).maybeSingle(),
+  ]);
+  if (!payment || payment.status !== 'SUCCESS') return { sent: false, skipped: true, reason: 'Payment is not confirmed' };
+  if (!customer || !customer.sms_opt_in || settings?.sms_balance_notifications_enabled === false) {
+    await admin.from('customer_sms_outbox').update({ status: 'FAILED', last_error: 'Customer SMS consent is off or notifications are disabled' })
+      .eq('tenant_id', tenantId).eq('id', queued.id).in('status', ['QUEUED', 'FAILED']);
+    return { sent: false, skipped: true, reason: 'Customer SMS consent or tenant SMS setting is off' };
+  }
+
+  const { data: claimed, error: claimError } = await admin.from('customer_sms_outbox')
+    .update({ status: 'SENDING', attempts: Number(queued.attempts || 0) + 1, last_error: null })
+    .eq('tenant_id', tenantId).eq('id', queued.id).in('status', ['QUEUED', 'FAILED'])
+    .select('id').maybeSingle();
+  if (claimError) throw new Error('Could not reserve the customer SMS for delivery');
+  if (!claimed) return { sent: false, skipped: true, reason: 'Customer SMS is already being sent' };
+
+  try {
+    const [{ data: balance, error: balanceError }, { data: currentQueue, error: attemptError }] = await Promise.all([
+      admin.rpc('service_get_customer_balance', { p_tenant_id: tenantId, p_customer_id: queued.customer_id }),
+      admin.from('customer_sms_outbox').select('attempts').eq('tenant_id', tenantId).eq('id', queued.id).maybeSingle(),
+    ]);
+    if (balanceError || attemptError) throw new Error('Could not calculate the customer balance for the SMS');
+    const amount = Number(payment.amount || 0).toLocaleString('en-KE', { maximumFractionDigits: 0 });
+    const balanceAmount = Number(balance || 0).toLocaleString('en-KE', { maximumFractionDigits: 0 });
+    const paymentLabel = payment.channel === 'MPESA_STK' ? 'M-Pesa' : payment.channel === 'BANK_TRANSFER' ? 'bank' : payment.channel.toLowerCase();
+    const businessName = settings?.business_name?.trim() || business?.name?.trim() || 'Your business';
+    const pointsText = settings?.loyalty_enabled === false ? '' : ` Points: ${Number(customer.loyalty_points || 0)}.`;
+    const message = `Hi ${customer.name}, KSh ${amount} received via ${paymentLabel}. Balance due: KSh ${balanceAmount}.${pointsText} ${businessName}.`;
+    const recipientPhone = customer.phone || queued.recipient_phone;
+    const form = new URLSearchParams({ username, to: recipientPhone, message });
+    const senderId = Deno.env.get('AFRICASTALKING_SENDER_ID')?.trim();
+    if (senderId) form.set('from', senderId);
+    const environment = Deno.env.get('AFRICASTALKING_ENVIRONMENT')?.toLowerCase() === 'sandbox' ? 'sandbox' : 'production';
+    const endpoint = environment === 'sandbox'
+      ? 'https://api.sandbox.africastalking.com/version1/messaging'
+      : 'https://api.africastalking.com/version1/messaging';
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { apiKey, Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form,
+    });
+    const result = await response.json().catch(() => ({}));
+    const recipient = result?.SMSMessageData?.Recipients?.[0];
+    if (!response.ok || !recipient || !/success/i.test(String(recipient.status || ''))) {
+      const providerError = String(recipient?.status || result?.SMSMessageData?.Message || `Africa’s Talking returned HTTP ${response.status}`).slice(0, 500);
+      throw new Error(providerError);
+    }
+    const { error: saveError } = await admin.from('customer_sms_outbox').update({
+      status: 'SENT', recipient_phone: recipientPhone,
+      provider_message_id: String(recipient.messageId || '').slice(0, 200) || null,
+      sent_at: new Date().toISOString(), last_error: null,
+    }).eq('tenant_id', tenantId).eq('id', queued.id).eq('status', 'SENDING');
+    if (saveError) throw new Error('SMS was accepted but its delivery record could not be saved');
+    return { sent: true, messageId: recipient.messageId || null };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message.slice(0, 500) : 'Africa’s Talking SMS request failed';
+    const { data: current } = await admin.from('customer_sms_outbox').select('attempts').eq('tenant_id', tenantId).eq('id', queued.id).maybeSingle();
+    await admin.from('customer_sms_outbox').update({
+      status: 'FAILED', attempts: Math.max(1, Number(current?.attempts || 1)), last_error: reason,
+    }).eq('tenant_id', tenantId).eq('id', queued.id).eq('status', 'SENDING');
+    throw error;
+  }
 }
 
 async function handleB2cCallback(request: Request, admin: SupabaseClient, origin?: string, timeout=false) {

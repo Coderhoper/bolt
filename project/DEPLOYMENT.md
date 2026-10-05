@@ -128,6 +128,27 @@ In the tenant app, open **Settings → Payments** and enter that business's Dara
 
 Employees can record a sale using channels enabled by their administrator. Cash change is calculated and saved; M-Pesa checkout requires a whole-KSh total and records Safaricom confirmation on the saved receipt; bank transfer and cheque remain pending for administrator confirmation. Credit is restricted to administrator-approved customers and available limits; manual receipts apply FIFO, and M-Pesa receipts settle the oldest invoice. Administrators can send a partial or full refund only for a confirmed M-Pesa sale, to the original payer phone, up to the amount received. Supplier payments can be sent from an outstanding purchase invoice to the supplier's saved phone; purchase balances change only after a successful B2C callback.
 
+## Customer records, rewards, and SMS
+
+Apply `20261005090000_customer_loyalty_analytics.sql` after the payment migration. It adds the administrator-only customer directory and payment history, product/supplier analytics, tenant-configurable loyalty rules and redemption dates, and a consent-aware SMS outbox. M-Pesa and bank sales require a customer name and mobile number; cash sales can capture them too. M-Pesa and bank details are attached to the sale and customer record. Points are credited only after an inbound payment is confirmed; successful refunds reverse eligible points. Customer SMS is sent only when the customer has opted in and the tenant has enabled messages.
+
+For the shared tenant Supabase project, regenerate the tenant migration bundle, apply the migration, and deploy the updated payment sender and Owner provisioning function:
+
+```powershell
+npm.cmd --prefix project run owner:embed-migrations
+npx.cmd supabase db push --workdir .\project\supabase --project-ref <tenant-shared-project-ref>
+npx.cmd supabase functions deploy payment-gateway --workdir .\project\supabase --project-ref <tenant-shared-project-ref>
+npx.cmd supabase functions deploy owner-provisioning --workdir .\project\supabase-owner --project-ref <owner-project-ref>
+```
+
+Apply `db push` and deploy `payment-gateway` to the shared tenant project. Deploy `owner-provisioning` to the separate Owner project so future tenant databases receive the new migration bundle. Configure Africa's Talking secrets on the shared tenant project's Supabase Edge Functions (not Vercel):
+
+```powershell
+npx.cmd supabase secrets set "AFRICASTALKING_USERNAME=<username>" "AFRICASTALKING_API_KEY=<api-key>" "AFRICASTALKING_SENDER_ID=<approved-sender-id>" "AFRICASTALKING_ENVIRONMENT=production" --workdir .\project\supabase --project-ref <tenant-shared-project-ref>
+```
+
+Use `AFRICASTALKING_ENVIRONMENT=sandbox` when testing against an Africa's Talking sandbox account. `AFRICASTALKING_SENDER_ID` is optional; only set it to a sender ID approved for the account. You may apply the migration and deploy the function before configuring SMS credentials: payment and loyalty records still work, while queued messages can be retried by an administrator from **Customers â†’ customer history â†’ SMS delivery** once credentials are configured. Keep the API key out of the app, Vercel variables, source control, and chat. Africa's Talking documents the [SMS sending API](https://developers.africastalking.com/docs/sms/sending/bulk).
+
 The Paddle fallback expects the self-hosted OCR adapter to accept the file bytes with their MIME type and return JSON shaped as `{ "text": "...", "lines": [{ "description": "...", "supplier_sku": null, "quantity": null, "unit": null, "unit_price": null, "confidence": 0.8, "source_page": 1, "source_bbox": null }], "structured": {} }`. Review and post every extracted receipt manually in the tenant app. Daily reconciliation is scheduled at 18:00 in each tenant's configured timezone when `pg_cron` is available; administrators can also run it from **Automation & controls**.
 
-This repository's production stack is a Vite/Supabase shared database with tenant-scoped rows and RLS, so the workflow extends that architecture rather than introducing the separate per-tenant PostgreSQL clusters, NestJS/FastAPI service, Redis/BullMQ/NATS, Vault/KMS, Kubernetes, or OpenTelemetry stack listed in the aspirational specification. The web app supports mobile camera capture, but there is no separate Expo app or offline queue. Email/SMS/push delivery, supplier portal responses, and owner break-glass tooling still require service and owner-plane work outside these tenant workflows. The email webhook is an adapter contract, not a provider-specific mailbox integration.
+This repository's production stack is a Vite/Supabase shared database with tenant-scoped rows and RLS. The web app supports mobile camera capture, but there is no separate Expo app or offline queue. Customer payment SMS is integrated with Africa's Talking and requires its server-side secrets as described above. Automated email and push delivery, supplier portal responses, and owner break-glass tooling still require their respective provider integrations and operating policies. The email webhook is an adapter contract, not a provider-specific mailbox integration.

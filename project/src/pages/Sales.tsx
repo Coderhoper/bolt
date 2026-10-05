@@ -24,7 +24,7 @@ interface SaleReceiptData {
   sale: { id: string; number: string; date: string; customer: string; payment_method: string; total: number; created_at: string };
   items: { name: string; sku?: string | null; quantity: number; unit_price: number; total: number }[];
 }
-interface CreditCustomerOption { id: string; name: string; credit_limit: number; current_balance: number; status: string }
+interface CreditCustomerOption { id: string; name: string; phone?: string | null; email?: string | null; credit_limit: number; current_balance: number; status: string }
 interface SalePaymentState { payment_id: string; channel: string; amount: number; status: string; provider_receipt: string | null; failure_reason: string | null; customer_phone: string | null; sale_payment_status: Sale['payment_status']; refundable: boolean }
 interface SaleRefundState { refund_id: string; amount: number; status: string; provider_receipt: string | null; failure_reason: string | null; notes: string | null; created_at: string }
 
@@ -44,6 +44,9 @@ export function Sales() {
   const [viewItems, setViewItems] = useState<SaleReceiptData['items']>([]);
   const [saleItems, setSaleItems] = useState<{ product_id: string; quantity: string }[]>([]);
   const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [smsOptIn, setSmsOptIn] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
   const [note, setNote] = useState('');
@@ -52,7 +55,6 @@ export function Sales() {
   const [creditCustomers, setCreditCustomers] = useState<CreditCustomerOption[]>([]);
   const [creditCustomerId, setCreditCustomerId] = useState('');
   const [amountTendered, setAmountTendered] = useState('');
-  const [mpesaPhone, setMpesaPhone] = useState('');
   const [mpesaPrompt, setMpesaPrompt] = useState<{ paymentId: string; amount: number; phone: string; mode?: 'payment' | 'refund' } | null>(null);
   const [salePayment, setSalePayment] = useState<SalePaymentState | null>(null);
   const [saleRefunds, setSaleRefunds] = useState<SaleRefundState[]>([]);
@@ -139,10 +141,12 @@ export function Sales() {
     }
     setSaleItems([{ product_id: '', quantity: '1' }]);
     setCustomerName('');
+    setCustomerPhone('');
+    setCustomerEmail('');
+    setSmsOptIn(false);
     setPaymentMethod('cash');
     setCreditCustomerId('');
     setAmountTendered('');
-    setMpesaPhone('');
     setSaleDate(new Date().toISOString().split('T')[0]);
     setNote('');
     setModalOpen(true);
@@ -166,8 +170,17 @@ export function Sales() {
       product_id: i.product_id,
       quantity: Number(i.quantity),
     }));
-    if (tenantMode && paymentMethod === 'mpesa' && !/^\+?254[17]\d{8}$|^0[17]\d{8}$|^[17]\d{8}$/.test(mpesaPhone.replace(/[\s()-]/g, ''))) {
-      showToast('Enter a valid Kenyan M-Pesa number', 'error');
+    const normalizedCustomerPhone = customerPhone.replace(/[\s()-]/g, '');
+    if (tenantMode && normalizedCustomerPhone && !/^\+?254[17]\d{8}$|^0[17]\d{8}$|^[17]\d{8}$/.test(normalizedCustomerPhone)) {
+      showToast('Enter a valid Kenyan mobile number', 'error');
+      return;
+    }
+    if (tenantMode && ['mpesa', 'bank'].includes(paymentMethod) && (!customerName.trim() || !normalizedCustomerPhone)) {
+      showToast('Enter the customer name and phone number for this payment', 'error');
+      return;
+    }
+    if (tenantMode && smsOptIn && !normalizedCustomerPhone) {
+      showToast('A phone number is required for SMS updates', 'error');
       return;
     }
     if (tenantMode && paymentMethod === 'mpesa' && (!Number.isInteger(calculateTotal()) || calculateTotal() < 1)) {
@@ -181,14 +194,20 @@ export function Sales() {
     }
     setSaving(true);
 
-    const saleRpc = tenantMode ? 'process_sale_with_payment' : 'process_sale';
+    const saleRpc = tenantMode ? 'process_sale_with_customer' : 'process_sale';
     const { data, error } = await supabase.rpc(saleRpc, {
       p_sale_items: itemsJson,
       p_customer_name: customerName || null,
       p_payment_method: paymentMethod,
       p_note: note || null,
       p_sale_date: saleDate,
-      ...(tenantMode ? { p_credit_customer_id: creditCustomerId || null, p_amount_tendered: paymentMethod === 'cash' ? cashTendered : null } : {}),
+      ...(tenantMode ? {
+        p_credit_customer_id: creditCustomerId || null,
+        p_amount_tendered: paymentMethod === 'cash' ? cashTendered : null,
+        p_customer_phone: normalizedCustomerPhone || null,
+        p_customer_email: customerEmail.trim() || null,
+        p_sms_opt_in: smsOptIn,
+      } : {}),
     });
 
     if (error) {
@@ -199,6 +218,11 @@ export function Sales() {
       showToast(paymentMethod === 'mpesa' && tenantMode ? 'Sale saved. Starting M-Pesa payment prompt.' : 'Sale recorded successfully', 'success');
       setModalOpen(false);
       await loadData(true);
+      if (tenantMode && paymentMethod === 'cash' && normalizedCustomerPhone && smsOptIn) {
+        const { data: paymentRows, error: paymentError } = await supabase.rpc('get_sale_payment', { p_sale_id: data });
+        const paymentRow = Array.isArray(paymentRows) ? paymentRows[0] : paymentRows;
+        if (!paymentError && paymentRow?.payment_id) await sendCustomerPaymentSms(paymentRow.payment_id);
+      }
       if (tenantMode && paymentMethod === 'mpesa') {
         const { data: paymentRows, error: paymentError } = await supabase.rpc('get_sale_payment', { p_sale_id: data });
         const paymentRow = Array.isArray(paymentRows) ? paymentRows[0] : paymentRows;
@@ -206,7 +230,7 @@ export function Sales() {
           showToast(paymentError?.message || 'Sale is saved, but its M-Pesa payment record could not be loaded.', 'error');
         } else {
           const { data: gatewayData, error: gatewayError } = await supabase.functions.invoke('payment-gateway', {
-            body: { action: 'initiate-stk', paymentId: paymentRow.payment_id, phone: mpesaPhone },
+            body: { action: 'initiate-stk', paymentId: paymentRow.payment_id, phone: normalizedCustomerPhone },
           });
           if (gatewayError || gatewayData?.error) {
             let message = gatewayData?.error || gatewayError?.message || 'M-Pesa prompt could not be started';
@@ -214,7 +238,7 @@ export function Sales() {
             if (response) { try { message = (await response.clone().json())?.error || message; } catch { /* preserve */ } }
             showToast(`Sale saved, but M-Pesa could not start: ${message}`, 'error');
           } else {
-            setMpesaPrompt({ paymentId: paymentRow.payment_id, amount: Number(paymentRow.amount), phone: mpesaPhone });
+            setMpesaPrompt({ paymentId: paymentRow.payment_id, amount: Number(paymentRow.amount), phone: normalizedCustomerPhone });
           }
         }
       }
@@ -227,6 +251,20 @@ export function Sales() {
       }
     }
     setSaving(false);
+  };
+
+  const sendCustomerPaymentSms = async (paymentId: string) => {
+    const { data, error } = await supabase.functions.invoke('payment-gateway', {
+      body: { action: 'send-customer-payment-sms', paymentId },
+    });
+    if (error || data?.error) {
+      let message = data?.error || error?.message || 'SMS could not be sent';
+      const response = (error as unknown as { context?: Response } | null)?.context;
+      if (response) { try { message = (await response.clone().json())?.error || message; } catch { /* preserve */ } }
+      showToast(`Payment saved, but the customer SMS could not be sent: ${message}`, 'error');
+    } else if (data?.sent) {
+      showToast('Customer payment and balance SMS sent', 'success');
+    }
   };
 
   const viewSaleDetails = async (sale: Sale) => {
@@ -324,6 +362,7 @@ export function Sales() {
       setSalePayment({ ...salePayment, status: success ? 'SUCCESS' : 'FAILED', provider_receipt: paymentReference.trim() || null });
       if (viewSale) setViewSale({ ...viewSale, payment_status: success ? 'paid' : 'failed', payment_reference: paymentReference.trim() || null });
       showToast(success ? 'Payment confirmed' : 'Payment marked failed', 'success');
+      if (success) await sendCustomerPaymentSms(salePayment.payment_id);
       await loadData(true);
     }
     setConfirmingPayment(false);
@@ -469,13 +508,15 @@ export function Sales() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New Sale" size="xl">
         <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div>
-              <label className="block text-sm font-medium text-ink-700 mb-1">{tenantMode && paymentMethod === 'credit' ? 'Credit Customer' : 'Customer Name'}</label>
+              <label className="block text-sm font-medium text-ink-700 mb-1">{tenantMode && paymentMethod === 'credit' ? 'Credit Customer' : `Customer Name${tenantMode && ['mpesa', 'bank'].includes(paymentMethod) ? ' *' : ''}`}</label>
               {tenantMode && paymentMethod === 'credit' ? <select required value={creditCustomerId} onChange={event => {
                 const selected = creditCustomers.find(customer => customer.id === event.target.value);
                 setCreditCustomerId(event.target.value);
                 setCustomerName(selected?.name || '');
+                setCustomerPhone(selected?.phone || '');
+                setCustomerEmail(selected?.email || '');
               }} className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500">
                 <option value="">Select approved customer</option>
                 {creditCustomers.map(customer => <option key={customer.id} value={customer.id} disabled={Number(customer.current_balance) >= Number(customer.credit_limit)}>{customer.name} · {formatCurrency(Math.max(Number(customer.credit_limit)-Number(customer.current_balance),0))} available</option>)}
@@ -484,7 +525,7 @@ export function Sales() {
                 value={customerName}
                 onChange={e => setCustomerName(e.target.value)}
                 className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500"
-                placeholder="Walk-in customer"
+                placeholder={tenantMode && ['mpesa', 'bank'].includes(paymentMethod) ? 'Customer name' : 'Walk-in customer'}
               />}
             </div>
             <div>
@@ -497,6 +538,14 @@ export function Sales() {
                 {availablePaymentMethods.map(method => <option key={method.value} value={method.value}>{method.label}</option>)}
               </select>
             </div>
+            {tenantMode && paymentMethod !== 'credit' && <div>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Customer phone{['mpesa', 'bank'].includes(paymentMethod) ? ' *' : ' (optional)'}</label>
+              <input type="tel" autoComplete="tel" value={customerPhone} onChange={event => setCustomerPhone(event.target.value)} className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500" placeholder="0712 345 678" />
+            </div>}
+            {tenantMode && paymentMethod !== 'credit' && <div>
+              <label className="block text-sm font-medium text-ink-700 mb-1">Email (optional)</label>
+              <input type="email" autoComplete="email" value={customerEmail} onChange={event => setCustomerEmail(event.target.value)} className="w-full rounded-sm border px-3 py-2 text-sm outline-none h-10 border-ink-200 bg-paper focus:border-accent-500" placeholder="customer@example.com" />
+            </div>}
             <div>
               <label className="block text-sm font-medium text-ink-700 mb-1">Sale Date</label>
               <input
@@ -514,9 +563,8 @@ export function Sales() {
             </label>
             <div className="self-end rounded-sm bg-accent-50 px-3 py-2 text-sm text-accent-900">Change: <strong data-numeric>{formatCurrency(Math.max((Number(amountTendered) || calculateTotal()) - calculateTotal(), 0))}</strong></div>
           </div>}
-          {tenantMode && paymentMethod === 'mpesa' && <label className="block text-sm font-medium text-ink-700">Customer M-Pesa phone
-            <input required type="tel" autoComplete="tel" value={mpesaPhone} onChange={event => setMpesaPhone(event.target.value)} className="mt-1 w-full rounded-sm border border-ink-200 px-3 py-2 text-sm" placeholder="0712 345 678" />
-          </label>}
+          {tenantMode && paymentMethod === 'mpesa' && <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-800">The M-Pesa prompt will be sent to {customerPhone || 'the customer phone number entered above'}.</p>}
+          {tenantMode && customerPhone.trim() && paymentMethod !== 'credit' && <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-ink-100 px-3 py-2.5"><input type="checkbox" checked={smsOptIn} onChange={event => setSmsOptIn(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-ink-300 text-accent-600 focus:ring-accent-500" /><span><span className="block text-xs font-medium text-ink-700">Customer agrees to receive payment and balance SMS</span><span className="mt-0.5 block text-[11px] text-ink-400">Only select this with the customer’s permission.</span></span></label>}
           {tenantMode && paymentMethod === 'credit' && <div className="rounded-sm bg-warning/10 px-3 py-2 text-sm text-ink-700">
             {creditCustomerId ? (() => { const customer = creditCustomers.find(item => item.id === creditCustomerId); return customer ? `Credit after this sale: ${formatCurrency(Number(customer.current_balance) + calculateTotal())} / ${formatCurrency(Number(customer.credit_limit))} limit` : ''; })() : 'Credit sales require an administrator-approved customer and available credit.'}
           </div>}

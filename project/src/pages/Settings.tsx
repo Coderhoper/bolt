@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PaymentSettingsPanel } from '@/components/PaymentSettingsPanel';
 import {
   Settings as SettingsIcon, Plus, Trash2, Users, Mail,
-  Building2, Save, UserPlus, Shield, X, CreditCard,
+  Building2, Save, UserPlus, Shield, X, CreditCard, Gift, MessageSquareText,
 } from 'lucide-react';
 import type { SystemSettings, Profile } from '@/types';
 
@@ -27,7 +27,7 @@ export function Settings() {
   const [staffRequests, setStaffRequests] = useState<StaffRegistrationRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'business' | 'users' | 'email' | 'payments'>('business');
+  const [activeTab, setActiveTab] = useState<'business' | 'users' | 'email' | 'payments' | 'loyalty'>('business');
   const [newRecipient, setNewRecipient] = useState('');
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'owner' });
@@ -66,6 +66,13 @@ export function Settings() {
       weekly_report_day: settings.weekly_report_day,
       weekly_report_enabled: settings.weekly_report_enabled,
       monthly_report_enabled: settings.monthly_report_enabled,
+      loyalty_enabled: settings.loyalty_enabled ?? true,
+      loyalty_points_per_100: settings.loyalty_points_per_100 ?? 1,
+      loyalty_kes_per_point: settings.loyalty_kes_per_point ?? 1,
+      loyalty_minimum_redemption: settings.loyalty_minimum_redemption ?? 100,
+      loyalty_redemption_month: settings.loyalty_redemption_month ?? 12,
+      loyalty_redemption_day: settings.loyalty_redemption_day ?? 31,
+      sms_balance_notifications_enabled: settings.sms_balance_notifications_enabled ?? true,
     }).eq('id', settings.id);
     if (error) {
       showToast('Failed to save settings', 'error');
@@ -173,14 +180,15 @@ export function Settings() {
 
   return (
     <div>
-      <PageHeader title="Settings" subtitle="Manage business information, users, and email settings" />
+      <PageHeader title="Settings" subtitle="Manage business details, team access, payments, rewards, and reporting." />
 
-      <div className="mb-6 flex gap-1 rounded-md border border-ink-100 bg-paper p-1 w-fit">
+      <div className="mb-6 flex w-fit flex-wrap gap-1 rounded-md border border-ink-100 bg-paper p-1">
         {[
           { key: 'business' as const, label: 'Business Info', icon: Building2 },
           { key: 'users' as const, label: 'Users', icon: Users },
           { key: 'email' as const, label: 'Email & Reports', icon: Mail },
           ...(tenantMode ? [{ key: 'payments' as const, label: 'Payments', icon: CreditCard }] : []),
+          ...(tenantMode ? [{ key: 'loyalty' as const, label: 'Loyalty & SMS', icon: Gift }] : []),
         ].map(tab => {
           const Icon = tab.icon;
           return (
@@ -511,6 +519,28 @@ export function Settings() {
       )}
 
       {activeTab === 'payments' && tenantMode && <PaymentSettingsPanel />}
+      {activeTab === 'loyalty' && tenantMode && (
+        <div className="max-w-3xl rounded-xl border border-ink-100 bg-paper p-5 shadow-sm sm:p-6">
+          <div className="mb-6"><div className="flex items-center gap-2"><Gift size={18} className="text-accent-600" /><h2 className="font-semibold text-ink-900">Customer loyalty and messages</h2></div><p className="mt-1 text-sm text-ink-500">Set how customers earn points and when they can redeem their year-end rewards.</p></div>
+          <div className="space-y-6">
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-ink-100 p-4"><input type="checkbox" checked={settings.loyalty_enabled ?? true} onChange={event => setSettings({ ...settings, loyalty_enabled: event.target.checked })} className="mt-0.5 h-4 w-4 rounded border-ink-300 text-accent-600 focus:ring-accent-500" /><span><span className="block text-sm font-semibold text-ink-800">Enable customer points</span><span className="mt-1 block text-xs leading-5 text-ink-500">Points are added after an incoming payment succeeds. Refunds adjust the points originally earned.</span></span></label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <SettingsNumber label="Points for each KSh 100 paid" value={settings.loyalty_points_per_100 ?? 1} min={0} max={1000} step="0.1" disabled={!(settings.loyalty_enabled ?? true)} onChange={value => setSettings({ ...settings, loyalty_points_per_100: value })} />
+              <SettingsNumber label="KSh value of one point" value={settings.loyalty_kes_per_point ?? 1} min={0} max={10000} step="0.1" disabled={!(settings.loyalty_enabled ?? true)} onChange={value => setSettings({ ...settings, loyalty_kes_per_point: value })} />
+              <SettingsNumber label="Minimum points to redeem" value={settings.loyalty_minimum_redemption ?? 100} min={1} max={1000000} step="1" disabled={!(settings.loyalty_enabled ?? true)} onChange={value => setSettings({ ...settings, loyalty_minimum_redemption: value })} />
+              <div><label className="mb-1.5 block text-sm font-medium text-ink-700">Redemption month</label><select disabled={!(settings.loyalty_enabled ?? true)} value={settings.loyalty_redemption_month ?? 12} onChange={event => setSettings({ ...settings, loyalty_redemption_month: Number(event.target.value) })} className="h-10 w-full rounded-lg border border-ink-200 bg-paper px-3 text-sm disabled:opacity-50">{['January','February','March','April','May','June','July','August','September','October','November','December'].map((month, index) => <option key={month} value={index + 1}>{month}</option>)}</select></div>
+              <SettingsNumber label="Redemption day of month" value={settings.loyalty_redemption_day ?? 31} min={1} max={31} step="1" disabled={!(settings.loyalty_enabled ?? true)} onChange={value => setSettings({ ...settings, loyalty_redemption_day: value })} />
+            </div>
+            <div className="rounded-lg bg-ink-50 p-4"><p className="text-sm font-semibold text-ink-800">Africa’s Talking SMS</p><p className="mt-1 text-xs leading-5 text-ink-600">Payment and balance updates are sent only to customers who have agreed to SMS. Add these secrets in the Supabase project that runs this tenant’s payment-gateway Edge Function:</p><ul className="mt-2 space-y-1 font-mono text-xs text-ink-700"><li>AFRICASTALKING_USERNAME</li><li>AFRICASTALKING_API_KEY</li><li>AFRICASTALKING_SENDER_ID (optional)</li></ul><p className="mt-2 text-xs text-ink-500">Keep the API key in Supabase secrets. Do not put it in Vercel’s VITE_* variables.</p></div>
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-ink-100 p-4"><input type="checkbox" checked={settings.sms_balance_notifications_enabled ?? true} onChange={event => setSettings({ ...settings, sms_balance_notifications_enabled: event.target.checked })} className="mt-0.5 h-4 w-4 rounded border-ink-300 text-accent-600 focus:ring-accent-500" /><span><span className="flex items-center gap-2 text-sm font-semibold text-ink-800"><MessageSquareText size={15} />Send payment and balance messages</span><span className="mt-1 block text-xs leading-5 text-ink-500">Turn this off to stop the system from sending new customer payment SMS messages.</span></span></label>
+          </div>
+          <div className="mt-6 flex justify-end"><button onClick={handleSaveSettings} disabled={saving} className="flex items-center gap-2 rounded-lg bg-accent-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-700 disabled:opacity-50"><Save size={16} />{saving ? 'Saving…' : 'Save loyalty settings'}</button></div>
+        </div>
+      )}
     </div>
   );
+}
+
+function SettingsNumber({ label, value, min, max, step, disabled, onChange }: { label: string; value: number; min: number; max: number; step: string; disabled: boolean; onChange: (value: number) => void }) {
+  return <label className="block text-sm font-medium text-ink-700">{label}<input type="number" min={min} max={max} step={step} value={value} disabled={disabled} onChange={event => onChange(Number(event.target.value))} className="mt-1.5 h-10 w-full rounded-lg border border-ink-200 bg-paper px-3 text-sm disabled:opacity-50" /></label>;
 }

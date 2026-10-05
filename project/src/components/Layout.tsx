@@ -7,6 +7,7 @@ import {
   LayoutDashboard, Package, ShoppingCart, TrendingUp, Wallet,
   Users, FileText, Settings, ScrollText, LogOut, Menu, X,
   Building2, Receipt, Target, ChevronDown, Truck, ClipboardCheck, Workflow,
+  BarChart3, ContactRound,
 } from 'lucide-react';
 
 interface NavItem {
@@ -18,6 +19,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, page: 'dashboard' },
+  { label: 'Analytics', icon: BarChart3, page: 'analytics', adminOnly: true },
   { label: 'Products', icon: Package, page: 'products' },
   { label: 'Stock Movements', icon: TrendingUp, page: 'stock-movements' },
   { label: 'Sales', icon: ShoppingCart, page: 'sales' },
@@ -25,6 +27,7 @@ const navItems: NavItem[] = [
   { label: 'Receiving', icon: ClipboardCheck, page: 'receiving' },
   { label: 'Automation', icon: Workflow, page: 'automation', adminOnly: true },
   { label: 'Suppliers', icon: Truck, page: 'suppliers' },
+  { label: 'Customers', icon: ContactRound, page: 'customers', adminOnly: true },
   { label: 'Expenses', icon: Wallet, page: 'expenses' },
   { label: 'Employees', icon: Users, page: 'employees' },
   { label: 'Salaries', icon: Wallet, page: 'salaries', adminOnly: true },

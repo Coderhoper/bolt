@@ -242,6 +242,13 @@ export interface SystemSettings {
   weekly_report_day: number;
   weekly_report_enabled: boolean;
   monthly_report_enabled: boolean;
+  loyalty_enabled?: boolean;
+  loyalty_points_per_100?: number;
+  loyalty_kes_per_point?: number;
+  loyalty_minimum_redemption?: number;
+  loyalty_redemption_month?: number;
+  loyalty_redemption_day?: number;
+  sms_balance_notifications_enabled?: boolean;
   updated_at: string;
 }
 
