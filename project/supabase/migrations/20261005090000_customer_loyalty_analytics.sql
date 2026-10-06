@@ -634,3 +634,5 @@ GRANT EXECUTE ON FUNCTION public.get_business_analytics(date,date) TO authentica
 ALTER TABLE public.sales VALIDATE CONSTRAINT sales_tenant_customer_profile_fk;
 ALTER TABLE public.payments VALIDATE CONSTRAINT payments_tenant_customer_profile_fk;
 ALTER TABLE public.credit_customers VALIDATE CONSTRAINT credit_customers_tenant_customer_profile_fk;
+
+NOTIFY pgrst, 'reload schema';

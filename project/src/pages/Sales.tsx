@@ -36,6 +36,8 @@ export function Sales() {
   const { showToast } = useToast();
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<SalesProduct[]>([]);
+  const [salesLoadError, setSalesLoadError] = useState('');
+  const [catalogLoadError, setCatalogLoadError] = useState('');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -71,7 +73,7 @@ export function Sales() {
     const salesQuery = salesOnly
       ? supabase.rpc('get_my_sales')
       : supabase.from('sales').select('*').order('created_at', { ascending: false });
-    const [{ data: s }, { data: p }] = await Promise.all([
+    const [{ data: s, error: salesError }, { data: p, error: catalogError }] = await Promise.all([
       salesQuery,
       tenantMode
         ? supabase.rpc('get_sale_catalog')
@@ -80,6 +82,8 @@ export function Sales() {
     ]);
     setSales((s || []) as Sale[]);
     setProducts((p || []) as SalesProduct[]);
+    setSalesLoadError(salesError?.message || '');
+    setCatalogLoadError(catalogError?.message || '');
     if (tenantMode) {
       const [{ data: channels }, { data: customers }] = await Promise.all([
         supabase.rpc('get_payment_channels'), supabase.rpc('get_credit_customers'),
@@ -447,6 +451,13 @@ export function Sales() {
           </button>
         )}
       />
+
+      {salesLoadError && <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        Sales could not be loaded. Check that the tenant database migrations are up to date. <span className="mt-1 block text-xs">{salesLoadError}</span>
+      </div>}
+      {catalogLoadError && <div role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        The sale catalogue could not be loaded. Apply <code>20261002010000_employee_registration_sales_receipts.sql</code> to the tenant Supabase project, then refresh. <span className="mt-1 block text-xs">{catalogLoadError}</span>
+      </div>}
 
       <div className="mb-4 relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" size={18} />

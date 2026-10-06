@@ -454,3 +454,4 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.get_dashboard_summary(date, date) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_dashboard_summary(date, date) TO authenticated;
+NOTIFY pgrst, 'reload schema';
