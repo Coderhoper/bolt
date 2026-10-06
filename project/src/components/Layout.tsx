@@ -3,10 +3,11 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { useCurrentTime } from '@/hooks/useCurrentTime';
 import { isTenantContextActive } from '@/lib/supabase';
+import { BrandLogo } from '@/components/BrandLogo';
 import {
   LayoutDashboard, Package, ShoppingCart, TrendingUp, Wallet,
   Users, FileText, Settings, ScrollText, LogOut, Menu, X,
-  Building2, Receipt, Target, ChevronDown, Truck, ClipboardCheck, Workflow,
+  Receipt, Target, ChevronDown, Truck, ClipboardCheck, Workflow,
   BarChart3, ContactRound,
 } from 'lucide-react';
 
@@ -61,7 +62,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-ink-50">
+    <div className="min-h-screen bg-ink-50 text-ink-900">
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-ink-900/40 backdrop-blur-sm lg:hidden animate-fade-in"
@@ -75,20 +76,8 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
         }`}
       >
         <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between px-5 py-5 border-b border-ink-800/80">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-500">
-                <Building2 className="text-white" size={18} strokeWidth={2} />
-              </div>
-              <div>
-                <p className="font-display text-[15px] font-semibold tracking-tight text-white leading-none">
-                  Business Manager
-                </p>
-                <p className="mt-1 text-[11px] font-medium tracking-wide uppercase text-ink-400">
-                  Inventory & Sales
-                </p>
-              </div>
-            </div>
+          <div className="flex items-center justify-between px-5 py-5 border-b border-white/10">
+            <BrandLogo size="sm" inverse tagline />
             <button
               onClick={() => setSidebarOpen(false)}
               className="lg:hidden text-ink-400 hover:text-white transition-colors"
@@ -98,7 +87,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
             </button>
           </div>
 
-          <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
+          <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
             {visibleItems.map(item => {
               const Icon = item.icon;
               const active = currentPage === item.page;
@@ -109,26 +98,26 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                     onNavigate(item.page);
                     setSidebarOpen(false);
                   }}
-                  className={`group flex w-full items-center gap-3 rounded-sm px-3 py-2 text-[13px] font-medium transition-colors duration-150 ${
+                  className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors duration-150 ${
                     active
-                      ? 'bg-accent-500/10 text-accent-300'
-                      : 'text-ink-400 hover:bg-ink-800/60 hover:text-white'
+                      ? 'bg-accent-500 text-white shadow-md shadow-accent-950/20'
+                      : 'text-ink-300 hover:bg-white/10 hover:text-white'
                   }`}
                 >
                   <Icon
                     size={16}
                     strokeWidth={active ? 2.2 : 1.9}
-                    className={active ? 'text-accent-300' : 'text-ink-500 group-hover:text-ink-300'}
+                    className={active ? 'text-white' : 'text-ink-400 group-hover:text-white'}
                   />
                   <span>{item.label}</span>
-                  {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-accent-300" />}
+              {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-white" />}
                 </button>
               );
             })}
           </nav>
 
-          <div className="border-t border-ink-800/80 p-3">
-            <div className="flex items-center gap-3 rounded-md px-2 py-2">
+          <div className="border-t border-white/10 p-3">
+            <div className="flex items-center gap-3 rounded-xl bg-white/5 px-2 py-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-ink-800 text-[12px] font-semibold text-white">
                 {profile?.name?.charAt(0).toUpperCase() || 'U'}
               </div>
@@ -153,7 +142,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
       </aside>
 
       <div className="lg:pl-64">
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-ink-100 bg-paper/80 backdrop-blur-md px-4 lg:px-8">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-ink-100 bg-paper/90 backdrop-blur-xl px-4 lg:px-8">
           <button
             onClick={() => setSidebarOpen(true)}
             className="lg:hidden text-ink-700 hover:text-ink-900 transition-colors"
@@ -171,7 +160,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
           <div className="relative">
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className="flex items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-ink-50 transition-colors duration-150"
+              className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-ink-50 transition-colors duration-150"
             >
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-ink-900 text-[11px] font-semibold text-white">
                 {profile?.name?.charAt(0).toUpperCase() || 'U'}
@@ -186,7 +175,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
             {userMenuOpen && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setUserMenuOpen(false)} />
-                <div className="absolute right-0 mt-2 w-60 rounded-md border border-ink-100 bg-paper py-1.5 shadow-lg z-20 animate-scale-in origin-top-right">
+                <div className="absolute right-0 mt-2 w-60 rounded-xl border border-ink-100 bg-paper py-1.5 shadow-xl z-20 animate-scale-in origin-top-right">
                   <div className="px-4 py-3 border-b border-ink-100">
                     <p className="text-[13px] font-semibold text-ink-900 leading-tight">
                       {profile?.name}
@@ -214,7 +203,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
           </div>
         </header>
 
-        <main className="p-4 lg:p-8">{children}</main>
+        <main className="p-4 sm:p-5 lg:px-8 lg:py-7">{children}</main>
       </div>
     </div>
   );

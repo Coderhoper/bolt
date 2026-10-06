@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import App from './App';
 import { setTenantSupabase } from '@/lib/supabase';
+import { BrandLogo } from '@/components/BrandLogo';
 
 type TenantRuntime = { tenant_id: string | null; tenant_name: string; supabase_url: string; publishable_key: string };
 
@@ -36,7 +37,7 @@ export function TenantBootstrap({ slug }: { slug: string }) {
       // Dedicated legacy tenants remain on their original single-business
       // profile authorization. New shared tenants use tenant membership scope.
       setTenantSupabase(runtime.supabase_url, runtime.publishable_key, runtime.tenant_id || '');
-      document.title = `${runtime.tenant_name} · Business Performance System`;
+      document.title = `${runtime.tenant_name} | AuditGuard`;
       setState({ ready: true, error: '' });
     };
 
@@ -49,6 +50,7 @@ export function TenantBootstrap({ slug }: { slug: string }) {
   if (state.ready) return <App />;
   return <div className="flex min-h-screen items-center justify-center bg-ink-50 p-5">
     <section className="w-full max-w-md rounded-md border border-ink-100 bg-paper p-8 text-center shadow-xs">
+      <BrandLogo size="md" tagline className="justify-center" />
       {state.error
         ? <>
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-md bg-warning/10 text-warning">

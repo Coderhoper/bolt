@@ -23,6 +23,7 @@ import { Analytics } from '@/pages/Analytics';
 import { Customers } from '@/pages/Customers';
 import { isTenantContextActive } from '@/lib/supabase';
 import { invokeTenantOwnerBridge } from '@/lib/tenantOwnerBridge';
+import { BrandLogo } from '@/components/BrandLogo';
 
 function AppContent() {
   const { session, profile, loading, isAdmin } = useAuth();
@@ -68,7 +69,8 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-ink-50">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-5 bg-ink-50">
+        <BrandLogo size="md" tagline />
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent-500" />
       </div>
     );
