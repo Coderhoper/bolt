@@ -29,6 +29,7 @@ export function Products() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [catalog, setCatalog] = useState<CatalogVariant[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -45,13 +46,16 @@ export function Products() {
 
   const loadData = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
-    const [{ data: prods }, { data: cats }, { data: sups }] = await Promise.all([
-      supabase.from('products').select('*, category:categories(*), supplier:suppliers(*)').order('name'),
+    const [{ data: prods, error: productsError }, { data: cats }, { data: sups }] = await Promise.all([
+      supabase.from('products')
+        .select('*, category:categories!products_tenant_category_fk(*), supplier:suppliers!products_tenant_supplier_fk(*)')
+        .order('name'),
       supabase.from('categories').select('*').order('name'),
       supabase.from('suppliers').select('*').order('name'),
     ]);
     const { data: catalogItems } = await supabase.from('hardware_catalog_variants').select('*').order('product_name').limit(5000);
     setProducts(prods || []);
+    setLoadError(productsError?.message || '');
     setCategories(cats || []);
     setCatalog((catalogItems || []) as CatalogVariant[]);
     setSuppliers(sups || []);
@@ -171,6 +175,10 @@ export function Products() {
           </button>
         )}
       />
+
+      {loadError && <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        Products could not be loaded. Check the tenant database schema and access policies. <span className="mt-1 block text-xs">{loadError}</span>
+      </div>}
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
